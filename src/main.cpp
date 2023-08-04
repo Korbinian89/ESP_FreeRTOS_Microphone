@@ -12,28 +12,23 @@
 #include <esp_log.h>
 
 // Insert your network credentials
-#define WIFI_SSID "FRITZ!Box 7530 DD"
-#define WIFI_PASSWORD "65684621901675575713"
-
-
+#define WIFI_SSID "FatLady"
+#define WIFI_PASSWORD "CaputDraconis"
 
 WiFiClient * wifiClient;
 HTTPClient * httpClient;
 WiFiServer * wifiServer;
 
 // Consts
-const int sampleRate = 40000;
-const int SAMPLE_SIZE = 2048;
-
-//const char*    ADC_SERVER_IP   = "192.168.178.25";
-//IPAddress      ADC_SERVER_IP = (192,168,178,25);
+const int      NUM_OF_SAMPLES  = 16384;
 const uint16_t ADC_SERVER_PORT = 12345;
 
-// config WTF?
+// config
 i2s_config_t adcI2SConfig =
 {
   .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_ADC_BUILT_IN),
-  .sample_rate = 40000,
+  //.sample_rate = 40000,
+  .sample_rate = 20000,
   .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
   .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
   .communication_format = I2S_COMM_FORMAT_I2S_LSB,
@@ -46,7 +41,9 @@ i2s_config_t adcI2SConfig =
 };
 
 
-
+/**********************************************************************
+ * ADC & I2S helper
+ **********************************************************************/
 void AdcSamplerEnableI2s()
 {
   // locks the ADC
@@ -78,7 +75,10 @@ void AdcSamplerStop()
   i2s_driver_uninstall(I2S_NUM_0);
 }
 
-// read 32kB ( 16384 * 2Byte )
+
+/**********************************************************************
+ * read 32kB ( 16384 * 2Byte )
+ **********************************************************************/
 int AdcReadI2s(int16_t* samples, int count)
 {
   // read from i2s
@@ -88,26 +88,30 @@ int AdcReadI2s(int16_t* samples, int count)
   for (int i = 0; i < samples_read; i++)
   {
     samples[i] = (2048 - (uint16_t(samples[i]) & 0xfff)) * 15;
-
   }
   return samples_read;
 }
 
 
+/**********************************************************************
+ * Send buffer to wifi client
+ **********************************************************************/
 void sendData(WiFiClient& iWifiClient, uint8_t* iData, size_t iCount)
 {
   iWifiClient.write(iData, iCount);
 }
 
 
-// Task to write samples from ADC to our server
+/**********************************************************************
+ * Task to write samples from ADC to our server
+ **********************************************************************/
 void adcReadAndSendTask(void *param)
 {
 
   // Pass function pointer and convert
   int(*functionPtr)(int16_t*, int) = (int(*)(int16_t*, int))param;
 
-  int16_t *pSamples = (int16_t *)malloc(sizeof(uint16_t) * SAMPLE_SIZE);
+  int16_t *pSamples = (int16_t *)malloc(sizeof(uint16_t) * NUM_OF_SAMPLES);
   if (!pSamples)
   {
     Serial.println("Failed to allocate memory for samples");
@@ -130,30 +134,27 @@ void adcReadAndSendTask(void *param)
     }
     while( !myClient );
 
-    if ( myClient ) 
-    {
-      Serial.println("Client accepted");
-    }
-    else
-    {
-      break;
-    }
+    Serial.println("Client accepted");
 
-    // call passed function and sleep
-    int samplesRead = functionPtr(pSamples, SAMPLE_SIZE);
-    Serial.println("Returned: Samples read: " + String(samplesRead) + " - First samples: " + String(pSamples[0]) + "\n");
-    size_t bytesSent = myClient.write((uint8_t*) pSamples, ( samplesRead * sizeof(int16_t) ) );
-    Serial.println("Bytes sent: " + String(bytesSent));
-
+    while ( myClient ) 
+    {
+      // send as long as you want until client breaks up
+      int samplesRead = functionPtr(pSamples, NUM_OF_SAMPLES);
+      Serial.println("Returned: Samples read: " + String(samplesRead) + " - First samples: " + String(pSamples[0]) + "\n");
+      size_t bytesSent = myClient.write((uint8_t*) pSamples, ( samplesRead * sizeof(int16_t) ) );
+      Serial.println("Bytes sent: " + String(bytesSent));
+    }
     myClient.stop();
-
     delay(1000);
   }
 }
 
 
-
-void setup() {
+/**********************************************************************
+ * Setup system
+ **********************************************************************/
+void setup() 
+{
   Serial.begin(115200);
 
   // launch WiFi
@@ -182,73 +183,18 @@ void setup() {
   // create task
   Serial.print("Setup Task\n");
   TaskHandle_t adcWriterTaskHandle;
-  xTaskCreatePinnedToCore(adcReadAndSendTask, "ADC Writer Task", 4096, (void*)AdcReadI2s, 1, &adcWriterTaskHandle, 1);
+  xTaskCreatePinnedToCore(adcReadAndSendTask, "ADC Read and WiFi Write Task", 4096, (void*)AdcReadI2s, 1, &adcWriterTaskHandle, 1);
 
   Serial.print("Setup - done\n");
 
 }
 
-void loop() {
-  // this won't work work with client code and python server
-  // no problem with server on ESP
 
-#if 0
-
-  // put your main code here, to run repeatedly:
-  // connect wifi client if not connected
-  if ( WiFi.status() != WL_CONNECTED )
-  {
-    Serial.println("Reconnecting to WiFi...");
-    WiFi.disconnect();
-    WiFi.reconnect();
-  }
-  Serial.println("Waiting for Client");
-
-  WiFiClient myClient;
-
-  do
-  {
-    delay(1000);
-    myClient = wifiServer->available();
-  }
-  while( !myClient );
-  
-  // operator overload with connected
-  if ( myClient )
-  {
-    Serial.println("Client accepted and connected ");
-
-    while ( myClient.connected() )
-    {
-      Serial.println("Client still connected");
-      size_t sendBytes = myClient.write("HI");
-      Serial.println("Bytes sent: " + String(sendBytes));
-      myClient.stop();
-    }
-  }
-  else
-  {
-    Serial.println("Invalid Client");
-  }
-
-  if ( !wifiClient->connected() )
-  {
-    int rtrn = wifiClient->connect(ADC_SERVER_IP, ADC_SERVER_PORT);
-    Serial.println("Rtrn Value: " + String(rtrn));
-    
-    
-    if ( wifiClient->connect(ADC_SERVER_IP, ADC_SERVER_PORT) )
-    {
-      Serial.println("Wifi Client connected to server successfully");
-      wifiClient->write("HI");
-      wifiClient->stop();
-    }
-    else
-    {
-      Serial.println("Wifi Client connection to server failed - try again");
-    }
-  }
-#endif
+/**********************************************************************
+ * Loopy Loop
+ **********************************************************************/
+void loop() 
+{
+  // nothing to be done
   delay(1000);
-
 }
