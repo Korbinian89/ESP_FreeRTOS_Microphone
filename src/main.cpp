@@ -41,7 +41,7 @@ TaskHandle_t i2sReadTaskHandle;
 
 // Consts
 //const int      NUM_OF_SAMPLES  = 16384;
-const int      NUM_OF_SAMPLES  = 256;
+const int      NUM_OF_SAMPLES  = 8092;
 const int      SAMPLE_RATE     = 20000;
 
 // config
@@ -172,8 +172,11 @@ void i2sReadAndSendTask(void *param)
 
     int samplesRead = 0;
     int cnt = 0;
+    
+    Firebase.ready();
+
     // read 
-    while ( samplesRead < samplesToRead && Firebase.ready()) 
+    while ( samplesRead < samplesToRead) 
     {
       int numOfSamples = ( (samplesToRead - samplesRead) < NUM_OF_SAMPLES ) ? (samplesToRead - samplesRead) : NUM_OF_SAMPLES;
       // send as long as you want until client breaks up
