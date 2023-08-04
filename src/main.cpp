@@ -7,24 +7,30 @@
 #include <driver/i2s.h>
 
 #include <WiFi.h>
-#include <HTTPClient.h>
 
 #include <esp_log.h>
 
-// Insert your network credentials
-#define WIFI_SSID "FatLady"
-#define WIFI_PASSWORD "CaputDraconis"
+// contains definitions wifi SSID and PASSWORD
+#include "../include/secrets.h"
 
-WiFiClient * wifiClient;
-HTTPClient * httpClient;
+// get sampler
+#include "sampler/adc_sampler.h"
+
+// definition which class shall be used
+#define SUPPORT_ADC_I2S_SAMPLER
+
+// wifi server - provides samples
 WiFiServer * wifiServer;
+
+// base class of samplers
+I2sSampler * i2sSampler;
 
 // Consts
 const int      NUM_OF_SAMPLES  = 16384;
 const uint16_t ADC_SERVER_PORT = 12345;
 
 // config
-i2s_config_t adcI2SConfig =
+i2s_config_t i2SConfig =
 {
   .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_ADC_BUILT_IN),
   //.sample_rate = 40000,
@@ -42,76 +48,19 @@ i2s_config_t adcI2SConfig =
 
 
 /**********************************************************************
- * ADC & I2S helper
- **********************************************************************/
-void AdcSamplerEnableI2s()
-{
-  // locks the ADC
-  i2s_set_adc_mode(ADC_UNIT_1, ADC1_CHANNEL_6);
-  i2s_adc_enable(I2S_NUM_0);
-}
-
-void AdcSamplerDisableI2s()
-{
-  // frees the ADC
-  i2s_adc_disable(I2S_NUM_0);
-}
-
-void AdcSamplerStart()
-{
-  // install driver
-  i2s_driver_install(I2S_NUM_0, &adcI2SConfig, 0, NULL);
-
-  // enable and lock ADC
-  AdcSamplerEnableI2s();
-}
-
-void AdcSamplerStop()
-{
-  // revers order
-  AdcSamplerDisableI2s();
-
-  // uninstall driver
-  i2s_driver_uninstall(I2S_NUM_0);
-}
-
-
-/**********************************************************************
- * read 32kB ( 16384 * 2Byte )
- **********************************************************************/
-int AdcReadI2s(int16_t* samples, int count)
-{
-  // read from i2s
-  size_t bytes_read = 0;
-  i2s_read(I2S_NUM_0, samples, sizeof(int16_t) * count, &bytes_read, portMAX_DELAY);
-  int samples_read = bytes_read / sizeof(int16_t);
-  for (int i = 0; i < samples_read; i++)
-  {
-    samples[i] = (2048 - (uint16_t(samples[i]) & 0xfff)) * 15;
-  }
-  return samples_read;
-}
-
-
-/**********************************************************************
- * Send buffer to wifi client
- **********************************************************************/
-void sendData(WiFiClient& iWifiClient, uint8_t* iData, size_t iCount)
-{
-  iWifiClient.write(iData, iCount);
-}
-
-
-/**********************************************************************
  * Task to write samples from ADC to our server
  **********************************************************************/
-void adcReadAndSendTask(void *param)
+void i2sReadAndSendTask(void *param)
 {
-
+#if 0
   // Pass function pointer and convert
+  // int read(int16_t*, int)
   int(*functionPtr)(int16_t*, int) = (int(*)(int16_t*, int))param;
+#endif
 
-  int16_t *pSamples = (int16_t *)malloc(sizeof(uint16_t) * NUM_OF_SAMPLES);
+  // generic sampler
+  I2sSampler* pSampler = (I2sSampler*) param;
+  int16_t*    pSamples = (int16_t *)malloc(sizeof(uint16_t) * NUM_OF_SAMPLES);
   if (!pSamples)
   {
     Serial.println("Failed to allocate memory for samples");
@@ -126,6 +75,7 @@ void adcReadAndSendTask(void *param)
   { 
     WiFiClient myClient;
     
+    // wait for connection
     do
     {
       Serial.println("Waiting for client");
@@ -139,7 +89,7 @@ void adcReadAndSendTask(void *param)
     while ( myClient ) 
     {
       // send as long as you want until client breaks up
-      int samplesRead = functionPtr(pSamples, NUM_OF_SAMPLES);
+      int samplesRead = pSampler->read(pSamples, NUM_OF_SAMPLES);
       Serial.println("Returned: Samples read: " + String(samplesRead) + " - First samples: " + String(pSamples[0]) + "\n");
       size_t bytesSent = myClient.write((uint8_t*) pSamples, ( samplesRead * sizeof(int16_t) ) );
       Serial.println("Bytes sent: " + String(bytesSent));
@@ -178,12 +128,18 @@ void setup()
 
   // setup ADC
   Serial.print("Setup ADC\n");
-  AdcSamplerStart();
 
+  // 
+#ifdef SUPPORT_ADC_I2S_SAMPLER
+  i2sSampler = new AdcSampler(ADC_UNIT_1, ADC1_CHANNEL_6, I2S_NUM_0, i2SConfig);
+#endif
+
+  i2sSampler->start();
+  
   // create task
   Serial.print("Setup Task\n");
-  TaskHandle_t adcWriterTaskHandle;
-  xTaskCreatePinnedToCore(adcReadAndSendTask, "ADC Read and WiFi Write Task", 4096, (void*)AdcReadI2s, 1, &adcWriterTaskHandle, 1);
+  TaskHandle_t i2sWriterTaskHandle;
+  xTaskCreatePinnedToCore(i2sReadAndSendTask, "ADC Read and WiFi Write Task", 4096, i2sSampler, 1, &i2sWriterTaskHandle, 1);
 
   Serial.print("Setup - done\n");
 
