@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # adress of server
-host = 'IP.IP.IP.IP'
+host = '192.168.178.55'
 port = 12345
 
 # get 2 seconds data
-numOfsamples = 40000
+numOfsamples = 32768
 sizeOfSample = 2 # 2 byte
 
 hostname=socket.gethostname()
@@ -35,7 +35,7 @@ for d in dataInt:
 mySock.close()
 
 # fft params
-Fs = 20000  # samplerate
+Fs = 16384  # samplerate
 Ts = 1.0 / Fs
 t = np.arange(0,2,Ts)
 y = dataInt
@@ -61,3 +61,4 @@ ax[2].semilogy(frq,abs(Y), 'r') #plitting the spectrum
 ax[2].set_xlabel('Freq (Hz)')
 ax[2].set_ylabel('|Y(freq)|')
 plt.show()
+

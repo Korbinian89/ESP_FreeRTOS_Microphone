@@ -26,15 +26,15 @@ WiFiServer * wifiServer;
 I2sSampler * i2sSampler;
 
 // Consts
-const int      NUM_OF_SAMPLES  = 16384;
-const uint16_t ADC_SERVER_PORT = 12345;
+const int      NUM_OF_SAMPLES_PER_SECOND  = 16384;
+const uint16_t ADC_SERVER_PORT            = 12345;
 
 // config
 i2s_config_t i2SConfig =
 {
   .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_ADC_BUILT_IN),
   //.sample_rate = 40000,
-  .sample_rate = 20000,
+  .sample_rate = 16384,
   .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
   .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
   .communication_format = I2S_COMM_FORMAT_I2S_LSB,
@@ -60,7 +60,7 @@ void i2sReadAndSendTask(void *param)
 
   // generic sampler
   I2sSampler* pSampler = (I2sSampler*) param;
-  int16_t*    pSamples = (int16_t *)malloc(sizeof(uint16_t) * NUM_OF_SAMPLES);
+  int16_t*    pSamples = (int16_t *)malloc(sizeof(uint16_t) * NUM_OF_SAMPLES_PER_SECOND);
   if (!pSamples)
   {
     Serial.println("Failed to allocate memory for samples");
@@ -89,7 +89,7 @@ void i2sReadAndSendTask(void *param)
     while ( myClient ) 
     {
       // send as long as you want until client breaks up
-      int samplesRead = pSampler->read(pSamples, NUM_OF_SAMPLES);
+      int samplesRead = pSampler->read(pSamples, NUM_OF_SAMPLES_PER_SECOND);
       Serial.println("Returned: Samples read: " + String(samplesRead) + " - First samples: " + String(pSamples[0]) + "\n");
       size_t bytesSent = myClient.write((uint8_t*) pSamples, ( samplesRead * sizeof(int16_t) ) );
       Serial.println("Bytes sent: " + String(bytesSent));
