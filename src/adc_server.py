@@ -1,5 +1,6 @@
 import socket
 import array
+import time
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -7,9 +8,9 @@ import numpy as np
 host = '192.168.178.55'
 port = 12345
 
-# get 2 seconds data
-numOfsamples = 32768
-sizeOfSample = 2 # 2 byte
+# get 3 seconds data
+numOfsamples = 48000
+sizeOfSample = 2 # 1 byte
 
 hostname=socket.gethostname()
 IPAddr=socket.gethostbyname(hostname)
@@ -34,10 +35,30 @@ for d in dataInt:
     break
 mySock.close()
 
+
+# send back
+for i in range(5):
+    time.sleep(1)
+    print("Sleep: " + str(i))
+
+mySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+mySock.connect((host, port))
+
+# send data in binary
+try:
+    mySock.send(data)
+    print("Send all done")
+except Exception as e:
+    print("Exception: " + str(e))
+
+mySock.close()
+time.sleep(2)
+
+
 # fft params
-Fs = 16384  # samplerate
+Fs = 16000  # samplerate
 Ts = 1.0 / Fs
-t = np.arange(0,2,Ts)
+t = np.arange(0,3,Ts)
 y = dataInt
 n = len(y)
 
@@ -48,6 +69,11 @@ frq = k/T # two sides frequency range
 frq = frq[range(int(n/2))] # one side frequency range
 Y = np.fft.fft(y)/n # fft computing and normalization
 Y = Y[range(int(n/2))]
+
+
+fD = open("random_16kHz_int16_t.raw","wb")
+fD.write(dataInt)
+fD.close()
 
 # plot
 fig, ax = plt.subplots(3,1)

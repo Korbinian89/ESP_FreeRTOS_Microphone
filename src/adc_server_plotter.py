@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import collections
+import array
 
 # Konfiguration des Servers
 SERVER_IP = '192.168.178.55'  # Dummy - enter ip of esp
@@ -10,7 +11,7 @@ SERVER_PORT = 12345  # Dummy - enter port
 
 # Konfiguration des Plotters
 SAMPLE_SIZE = 2  # Größe eines Samples in Byte
-MAX_SAMPLES_PER_READ = 16384  # Maximale Anzahl an Samples pro Read - 4 sekunden - sample rate 16384
+MAX_SAMPLES_PER_READ = 16000  # Maximale Anzahl an Samples pro Read - 4 sekunden - sample rate 16384
 BUFFER_SIZE = SAMPLE_SIZE * MAX_SAMPLES_PER_READ
 
 # Anzahl der Samples, die im beweglichen Fenster angezeigt werden sollen
@@ -35,6 +36,7 @@ def read_adc_data(client_socket):
 def animate(i):
     adc_values = read_adc_data(client_socket)
     print("Num of samples recv:" + str(len(adc_values)))
+    
     adc_buffer.extend(adc_values)
 
     #line.set_data(time, graphData)

@@ -1,6 +1,7 @@
 /**********************************************************************
  * ADC Derived Sampler Class
  **********************************************************************/
+#include <HardwareSerial.h>
 #include "adc_sampler.h"
 
 
@@ -25,13 +26,19 @@ void AdcSampler::disable_i2s()
 
 int AdcSampler::read(int16_t* iSamples, int iCount)
 {  
-  // read from i2s
-  size_t bytesRead = 0;
-  i2s_read(mI2sPort, iSamples, sizeof(int16_t) * iCount, &bytesRead, portMAX_DELAY);
-  int samplesRead = bytesRead / sizeof(int16_t);
-  for (int i = 0; i < samplesRead; i++)
-  {
-    iSamples[i] = (2048 - (uint16_t(iSamples[i]) & 0xfff)) * 15;
-  }
-  return samplesRead;
+      // read from i2s
+    size_t bytesRead = 0;
+    auto rtrn = i2s_read(mI2sPort, iSamples, sizeof(int16_t) * iCount, &bytesRead, portMAX_DELAY);
+
+    if ( rtrn == ESP_OK )
+      Serial.println("ADC Read OK: " + String(bytesRead));
+    else
+      Serial.println("ADC Failed - Parameter Error");
+
+    int samplesRead = bytesRead / sizeof(int16_t);
+    for (int i = 0; i < samplesRead; i++)
+    {
+        iSamples[i] = (2048 - (uint16_t(iSamples[i]) & 0xfff)) * 15;
+    }
+    return samplesRead;
 }
