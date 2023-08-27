@@ -30,8 +30,9 @@ for i in range(3):
     time.sleep(1)
     print("Sleep: " + str(i))
 
-fD = open("Test_UnSigned8bit_PCM.raw","rb")
+#fD = open("Test_UnSigned8bit_PCM.raw","rb")
 #fD = open("random_16kHz_uint8_t.raw","rb")
+fD = open("Test_Signed16bit_PCM.raw","rb")
 
 
 mySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -41,7 +42,7 @@ mySock.connect((host, port))
 # send data in binary
 try:
     while(True):
-        mySock.recv(1)
+        #mySock.recv(1)
         binaryData = fD.read(1024)
         if not binaryData:
             break

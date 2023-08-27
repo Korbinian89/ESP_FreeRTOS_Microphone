@@ -34,32 +34,16 @@ I2sSampler * i2sSampler;
 // dac sampler
 DacSampler * dacSampler;
 
-// circular buffer
-uint8_t * circularBuffer;
-
-
-// timer event
-hw_timer_t * timer = NULL; 
-
-// dac read from wifi client
-WiFiClient dacWifiClient;
-
-// timer mux
-portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED; 
 
 TaskHandle_t dacWriteTaskHandle;
 TaskHandle_t i2sReadTaskHandle;
 
 // Consts
-const int      SAMPLE_RATE                = 16000;
+const int      SAMPLE_RATE                = 32000;
 const int      NUM_OF_SAMPLES_PER_SECOND  = SAMPLE_RATE;
 const uint16_t ADC_SERVER_PORT            = 12345;
 const int      DAC_BUFFER_MAX_SAMPLES     = 8192;
 
-// globals 
-int            dacBufferReadPointer       = 0;
-int            dacBufferWritePointer      = 1;
-bool           dacOutputPlay              = false;
 
 // config
 i2s_config_t i2SConfigAdc =
@@ -68,7 +52,7 @@ i2s_config_t i2SConfigAdc =
   .sample_rate = SAMPLE_RATE,
   .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
   .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
-  .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_STAND_MSB),
+  .communication_format = I2S_COMM_FORMAT_I2S_LSB,
   .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
   .dma_buf_count = 4,
   .dma_buf_len = 1024,
@@ -77,94 +61,33 @@ i2s_config_t i2SConfigAdc =
   .fixed_mclk = 0
 };
 
+
+/**********************************************************************
+ * Do not use built-in DAC - broken with current ESP Arduino version
+ **********************************************************************/
 i2s_config_t i2SConfigDac =
 {
-  .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX | I2S_MODE_DAC_BUILT_IN),
+  .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
   .sample_rate = SAMPLE_RATE,
-  .bits_per_sample = I2S_BITS_PER_SAMPLE_8BIT,
+  .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
   .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
-  .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_STAND_MSB),
+  .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S),
   .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
   .dma_buf_count = 4,
-  .dma_buf_len = 1024,
-  .use_apll = false,
-  .tx_desc_auto_clear = false,
-  .fixed_mclk = 0,
-  .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT
+  .dma_buf_len = 1024
 };
 
-
-
-
-
 /**********************************************************************
- * DAC circular buffer
+ * External DAC via I2S pin layout
  **********************************************************************/
-int getDistance()
+i2s_pin_config_t i2SPinsDac = 
 {
-  int distance = 0;
-  if (dacBufferReadPointer < dacBufferWritePointer ) distance =  DAC_BUFFER_MAX_SAMPLES - dacBufferWritePointer + dacBufferReadPointer;
-  else if (dacBufferReadPointer > dacBufferWritePointer ) distance = dacBufferReadPointer - dacBufferWritePointer;
-  return distance;
-}
+  .bck_io_num = GPIO_NUM_27,
+  .ws_io_num = GPIO_NUM_14,
+  .data_out_num = GPIO_NUM_26,
+  .data_in_num = -1
+};
 
-
-/**********************************************************************
- * Setup dac and timer
- **********************************************************************/
-void IRAM_ATTR onTimer()
-{
-  portENTER_CRITICAL_ISR(&timerMux);
-  
-  // play data: 
-  if (dacOutputPlay)
-  {
-    dac_output_voltage(DAC_CHANNEL_1, circularBuffer[dacBufferReadPointer]);
-
-    dacBufferReadPointer++;
-    if (dacBufferReadPointer == DAC_BUFFER_MAX_SAMPLES)
-    {
-      dacBufferReadPointer = 0;
-    }
-
-    if ( getDistance() == 0 )
-    {
-      Serial.println("Buffer underrun!!!");
-      dacOutputPlay = false;
-    }
-  }
-  portEXIT_CRITICAL_ISR(&timerMux);
-}
-
-/**********************************************************************
- * Setup dac and timer
- **********************************************************************/
-void setup_dac_and_timer()
-{
-  dac_output_enable(DAC_CHANNEL_1);
-
-  pinMode(33, INPUT_PULLUP);
-  pinMode(32, INPUT_PULLUP);
-
-  // Timer 0 has 80MHz -> Presale of 2 -> 40MHz tick
-  timer = timerBegin(0, 2, true);
-  timerAttachInterrupt(timer, &onTimer, true);
-
-  // Interrupt every 2500 ticks -> 16kHz -> Samplerate of test_UnSigned8bit_PCM.raw
-  timerAlarmWrite(timer, 2500, true);
-  timerAlarmEnable(timer);
-}
-
-/**********************************************************************
- * Stop dac and timer
- **********************************************************************/
-void stop_dac_and_timer()
-{
-  dac_output_disable(DAC_CHANNEL_1);
-  timerAlarmDisable(timer);
-  timerDetachInterrupt(timer);
-  timerStop(timer);
-}
 
 /**********************************************************************
  * Task to write samples from ADC to our server
@@ -173,7 +96,8 @@ void i2sReadAndSendTask(void *param)
 {
   // generic sampler
   I2sSampler* pSampler = (I2sSampler*) param;
-  int16_t*    pSamples = (int16_t *)malloc(sizeof(int16_t) * NUM_OF_SAMPLES_PER_SECOND);
+  //int16_t*    pSamples = (int16_t *)malloc(sizeof(int16_t) * NUM_OF_SAMPLES_PER_SECOND);
+  int16_t*    pSamples = (int16_t *)malloc(sizeof(int16_t) * 1024 * 2); // store 2 dma buffer
 
   if (!pSamples)
   {
@@ -205,7 +129,8 @@ void i2sReadAndSendTask(void *param)
     while ( myClient ) 
     {
       // send as long as you want until client breaks up
-      int samplesRead = pSampler->read(pSamples, NUM_OF_SAMPLES_PER_SECOND);
+      //int samplesRead = pSampler->read(pSamples, NUM_OF_SAMPLES_PER_SECOND);
+      int samplesRead = pSampler->read(pSamples, 1024 * 2 /* two dma buffer at once */);
       Serial.println("Returned: Samples read: " + String(samplesRead) + " - First samples: " + String(pSamples[0]) + "\n");
       size_t bytesSent = myClient.write((uint8_t*)pSamples, samplesRead * sizeof(int16_t));
       Serial.println("Bytes sent: " + String(bytesSent));
@@ -225,76 +150,59 @@ void i2sReadAndSendTask(void *param)
 
 void dacWriteTask(void *param)
 {
-  //DacSampler* pSampler = (DacSampler*) param;
-  
+  DacSampler* pSampler = (DacSampler*) param;
+  int16_t*    pSamples = (int16_t *)malloc(sizeof(int16_t) * 1024); // 1024 samples to 1024 samples DMA buffer
+
+
   while (true)
   { 
     vTaskSuspend(NULL);
 
     Serial.println("dacWriteTask: resume DAC and start I2S");
 
+    // dac read from wifi client
+    WiFiClient dacWifiClient;
+
     // start I2S DAC
-    //pSampler->start();
+    pSampler->start();
 
-    // start filling circular buffer
-    setup_dac_and_timer();
-
-    // reset buffer cache
-    dacBufferReadPointer  = 0;
-    dacBufferWritePointer = 1;
-
-    do
+    // read from wifi into circular buffer if enabled
+    // switch to TcpAsync Library
+    // wait for connection
+    if ( !dacWifiClient )
     {
-      // read from wifi into circular buffer if enabled
-      // switch to TcpAsync Library
-      // wait for connection
-      if ( !dacWifiClient )
+      do
       {
-        do
-        {
-          Serial.println("wifiLoop: waiting for client");
-          delay(1000);
-          dacWifiClient = wifiServer->available();
-        }
-        while( !dacWifiClient );
+        Serial.println("wifiLoop: waiting for client");
+        delay(1000);
+        dacWifiClient = wifiServer->available();
       }
-      Serial.println("wifiLoop: client accepted");
-
-      int distance = getDistance();
-      if (distance <= 1024) dacOutputPlay = true;
-
-      // get 1024 new samples
-      if (distance >= 1024) 
-      {
-        dacWifiClient.write( B11111111 ); // send the command to send new data
-    
-        // read new data: 
-        while (dacWifiClient.available() == 0);
-        while (dacWifiClient.available() >= 1) 
-        {
-          uint8_t value = dacWifiClient.read();
-          circularBuffer[dacBufferWritePointer] = value;
-          dacBufferWritePointer++;
-          if (dacBufferWritePointer == DAC_BUFFER_MAX_SAMPLES) dacBufferWritePointer = 0;
-        }
-      }
+      while( !dacWifiClient );
     }
-    // connection to dac client still valid
-    while( dacWifiClient );
+    Serial.println("wifiLoop: client accepted");
+
+    while( dacWifiClient )
+    {
+      int availableBytes = dacWifiClient.available();
+      Serial.printf("Availables bytes: %d\n", availableBytes);
+
+      int bytesReceived = dacWifiClient.read((uint8_t*)pSamples, 1024 * sizeof(int16_t));
+      Serial.printf("Bytes received: %d\n", bytesReceived);
+
+      int samplesWritten = pSampler->write(pSamples, 1024);
+      Serial.printf("Samples written %d\n", samplesWritten);
+    }
 
     Serial.println("dacWriteTask: client disconnected - stop dac");
     
     delay(100);
 
-    stop_dac_and_timer();
-
     // stop client and DAC
-    //pSampler->stop();
+    pSampler->stop();
 
     // resume mic adc task
     vTaskResume(i2sReadTaskHandle);
   }
-
 }
 
 
@@ -304,6 +212,10 @@ void dacWriteTask(void *param)
 void setup() 
 {
   Serial.begin(115200);
+
+
+  Serial.printf("ESP-IDF Version %d.%d.%d \r\n", ESP_IDF_VERSION_MAJOR, ESP_IDF_VERSION_MINOR, ESP_IDF_VERSION_PATCH);
+  Serial.printf("Ardunio Version %d.%d.%d \r\n", ESP_ARDUINO_VERSION_MAJOR, ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
 
   // launch WiFi
   Serial.printf("Connecting to WiFi");
@@ -327,7 +239,7 @@ void setup()
   // setup ADC
   Serial.print("Setup ADC\n");
 #ifdef SUPPORT_ADC_I2S_SAMPLER
-  i2sSampler = new AdcSampler(ADC_UNIT_1, ADC1_CHANNEL_6, I2S_NUM_0, i2SConfigAdc);
+  i2sSampler = new AdcSampler(ADC_UNIT_1, ADC1_CHANNEL_7, I2S_NUM_0, i2SConfigAdc);
 #endif
   
   // create task - second core
@@ -335,20 +247,14 @@ void setup()
   xTaskCreatePinnedToCore(i2sReadAndSendTask, "ADC Read and WiFi Write Task", 4096, i2sSampler, 1, &i2sReadTaskHandle, 1);
 
   // DAC
-#if 0
   Serial.print("Setup DAC\n");
-  dacSampler = new DacSampler(I2S_DAC_CHANNEL_BOTH_EN, I2S_NUM_0, i2SConfigDac);
-#endif
+  dacSampler = new DacSampler(i2SPinsDac, I2S_NUM_1, i2SConfigDac);
 
   // create task - first core
   Serial.print("Setup Adc Task\n");
-  xTaskCreatePinnedToCore(dacWriteTask, "DAC Play from circ buf", 4096, nullptr /*dacSampler*/, 1, &dacWriteTaskHandle, 0);
-
-  // create circular buffer for DAC - we get 
-  circularBuffer = (uint8_t*)malloc(DAC_BUFFER_MAX_SAMPLES);
+  xTaskCreatePinnedToCore(dacWriteTask, "DAC Play from circ buf", 4096, dacSampler, 1, &dacWriteTaskHandle, 0);
 
   Serial.print("Setup - done\n");
-
 }
 
 
