@@ -8,9 +8,9 @@ import numpy as np
 host = '192.168.178.55'
 port = 12345
 
-# get 3 seconds data
-numOfsamples = 48000
-sizeOfSample = 2 # 1 byte
+sampleRate = 32000
+numOfsamples = sampleRate * 5 # 5seconds
+sizeOfSample = 2 # 2 byte
 
 hostname=socket.gethostname()
 IPAddr=socket.gethostbyname(hostname)
@@ -56,9 +56,9 @@ time.sleep(2)
 
 
 # fft params
-Fs = 16000  # samplerate
+Fs = sampleRate  # samplerate
 Ts = 1.0 / Fs
-t = np.arange(0,3,Ts)
+t = np.arange(0,5,Ts)
 y = dataInt
 n = len(y)
 
@@ -70,8 +70,8 @@ frq = frq[range(int(n/2))] # one side frequency range
 Y = np.fft.fft(y)/n # fft computing and normalization
 Y = Y[range(int(n/2))]
 
-
-fD = open("random_16kHz_int16_t.raw","wb")
+# store as sample
+fD = open("sample.raw","wb")
 fD.write(dataInt)
 fD.close()
 
