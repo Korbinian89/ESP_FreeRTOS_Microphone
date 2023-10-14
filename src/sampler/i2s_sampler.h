@@ -14,13 +14,14 @@ public:
     void start();
     void stop();
     virtual int read(int16_t* samples, int count) = 0;
+    virtual size_t write(int16_t* samples, int count) = 0;
 
 
 protected:
     virtual void enable_i2s() = 0;
     virtual void disable_i2s() = 0;
 
-    i2s_port_t   mI2sPort = I2S_NUM_0;
+    i2s_port_t   mI2sPort   {I2S_NUM_0};
     i2s_config_t mI2sConfig {};
     
 };

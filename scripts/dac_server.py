@@ -32,7 +32,7 @@ for i in range(3):
 
 #fD = open("Test_UnSigned8bit_PCM.raw","rb")
 #fD = open("random_16kHz_uint8_t.raw","rb")
-fD = open("Test_Signed16bit_PCM.raw","rb")
+fD = open("../audio_samples/Test_Signed16bit_PCM.raw","rb")
 
 
 mySock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
