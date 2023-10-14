@@ -6,3 +6,4 @@
 include/secrets.h
 platformio.ini
 *.bin
+sample.raw

@@ -15,7 +15,7 @@ public:
     ~DacSampler();
 
     size_t write(int16_t* samples, int count) override;
-    inline int read(int16_t* samples, int count) override { /* not used here */}
+    inline int read(int16_t* samples, int count) override { /* not used here */ return 0; }
 
 #if 0
     void start();
