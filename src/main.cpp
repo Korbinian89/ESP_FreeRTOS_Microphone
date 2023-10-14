@@ -29,10 +29,10 @@
 WiFiServer * wifiServer;
 
 // base class of samplers
-I2sSampler * i2sSampler;
+I2sSampler * i2sAdcSampler;
 
 // dac sampler
-DacSampler * dacSampler;
+I2sSampler * i2sDacSampler;
 
 
 TaskHandle_t dacWriteTaskHandle;
@@ -150,7 +150,7 @@ void i2sReadAndSendTask(void *param)
 
 void dacWriteTask(void *param)
 {
-  DacSampler* pSampler = (DacSampler*) param;
+  I2sSampler* pSampler = (DacSampler*) param;
   int16_t*    pSamples = (int16_t *)malloc(sizeof(int16_t) * 1024); // 1024 samples to 1024 samples DMA buffer
 
 
@@ -238,21 +238,19 @@ void setup()
 
   // setup ADC
   Serial.print("Setup ADC\n");
-#ifdef SUPPORT_ADC_I2S_SAMPLER
-  i2sSampler = new AdcSampler(ADC_UNIT_1, ADC1_CHANNEL_7, I2S_NUM_0, i2SConfigAdc);
-#endif
+  i2sAdcSampler = new AdcSampler(ADC_UNIT_1, ADC1_CHANNEL_7, I2S_NUM_0, i2SConfigAdc);
   
   // create task - second core
   Serial.print("Setup Adc Task\n");
-  xTaskCreatePinnedToCore(i2sReadAndSendTask, "ADC Read and WiFi Write Task", 4096, i2sSampler, 1, &i2sReadTaskHandle, 1);
+  xTaskCreatePinnedToCore(i2sReadAndSendTask, "ADC Read and WiFi Write Task", 4096, i2sAdcSampler, 1, &i2sReadTaskHandle, 1);
 
   // DAC
   Serial.print("Setup DAC\n");
-  dacSampler = new DacSampler(i2SPinsDac, I2S_NUM_1, i2SConfigDac);
+  i2sDacSampler = new DacSampler(i2SPinsDac, I2S_NUM_1, i2SConfigDac);
 
   // create task - first core
   Serial.print("Setup Adc Task\n");
-  xTaskCreatePinnedToCore(dacWriteTask, "DAC Play from circ buf", 4096, dacSampler, 1, &dacWriteTaskHandle, 0);
+  xTaskCreatePinnedToCore(dacWriteTask, "DAC Write and WiFi Read Task", 4096, i2sDacSampler, 1, &dacWriteTaskHandle, 0);
 
   Serial.print("Setup - done\n");
 }

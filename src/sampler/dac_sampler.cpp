@@ -7,20 +7,26 @@
 
 const int NUM_OF_FRAMES_TO_SEND = 512;
 
+/**********************************************************************
+ * CTOR Dac
+ **********************************************************************/
 DacSampler::DacSampler(i2s_pin_config_t iI2sPinConfig, i2s_port_t iI2sPort, const i2s_config_t& iI2sConfig)
-  : mI2sPinConfig(iI2sPinConfig)
-  , mI2sPort(iI2sPort)
-  , mI2sConfig(iI2sConfig)
+  : I2sSampler(iI2sPort, iI2sConfig)
+  , mI2sPinConfig(iI2sPinConfig)
 {
-    mFrames = (int16_t*)malloc(2 * sizeof(int16_t) * NUM_OF_FRAMES_TO_SEND);
+  mFrames = (int16_t*)malloc(2 * sizeof(int16_t) * NUM_OF_FRAMES_TO_SEND);
 }
 
+/**********************************************************************
+ * DTOR Dac
+ **********************************************************************/
 DacSampler::~DacSampler()
 {
   free(mFrames);
 }
 
-
+#if 0
+// start and stop will be implemented in base class
 void DacSampler::start()
 {
   Serial.printf("Start DAC\n");
@@ -42,13 +48,35 @@ void DacSampler::start()
 }
 
 
-
 void DacSampler::stop()
 {
   i2s_driver_uninstall(mI2sPort);
 }
 
-// sample count
+#endif
+
+/**********************************************************************
+ * Enalbe i2s for dac
+ **********************************************************************/
+void DacSampler::enable_i2s()
+{
+  // set up the i2s pins
+  i2s_set_pin(mI2sPort, &mI2sPinConfig);
+  // clear the DMA buffers
+  i2s_zero_dma_buffer(mI2sPort);
+}
+
+/**********************************************************************
+ * Disable i2s for dac
+ **********************************************************************/
+void DacSampler::disable_i2s()
+{
+  /* nothing to be done here - uninstalled is handled in base class */
+}
+
+/**********************************************************************
+ * Write i2s - samples and number of samples
+ **********************************************************************/
 size_t DacSampler::write(int16_t* iSamples, int iCount)
 {
   int sample_index = 0;
