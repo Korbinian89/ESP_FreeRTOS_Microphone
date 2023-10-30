@@ -37,7 +37,7 @@ void CAppStreamToHost::setup()
   
   // create task - second core
   Serial.print("Setup ADC Task\n");
-  xTaskCreatePinnedToCore(CAppStreamToHost::i2s_read_and_send_task, "ADC Read and WiFi Write Task", 4096, this, 1, &mI2sReadTaskHandle, 1);
+  xTaskCreatePinnedToCore(CAppStreamToHost::i2s_read_and_send_task, "ADC Read and WiFi Write Task", 4096, this, 1, &mI2sReadTaskHandle, 0);
 
   // DAC
   Serial.print("Setup DAC\n");

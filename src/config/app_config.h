@@ -1,3 +1,5 @@
+#pragma once
+
 #include <driver/i2s.h>
 
 /**********************************************************************
@@ -53,3 +55,4 @@ i2s_pin_config_t i2SPinsDac =
   .data_out_num = GPIO_NUM_26,
   .data_in_num = -1
 };
+

@@ -5,21 +5,14 @@
  * When PC disconnects the stream, switch to receiving mode
  * PC starts sending the data back so esp can play it back
  ********************************************************************************************/
+#pragma once
+
 #include <Arduino.h>
 #include <FreeRTOSConfig.h>
-#include <thread>
 #include <freertos/FreeRTOS.h>
-
-#include <driver/adc.h>
-#include <driver/dac.h>
-#include <driver/i2s.h>
-#include <esp_system.h>
 
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
-
-#include <esp_log.h>
-
 
 // get dac sampler
 #include "../sampler/dac_sampler.h"

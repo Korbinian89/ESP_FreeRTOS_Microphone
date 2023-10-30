@@ -1,7 +1,6 @@
 /**********************************************************************
  * ADC Derived Sampler Class
  **********************************************************************/
-#include <esp_log.h>
 #include <HardwareSerial.h>
 #include "dac_sampler.h"
 
@@ -25,35 +24,7 @@ DacSampler::~DacSampler()
   free(mFrames);
 }
 
-#if 0
-// start and stop will be implemented in base class
-void DacSampler::start()
-{
-  Serial.printf("Start DAC\n");
 
-  //install and start i2s driver
-  esp_err_t rtrn = i2s_driver_install(mI2sPort, &mI2sConfig, 4, mI2sQueue);
-
-  if ( rtrn == ESP_ERR_INVALID_ARG )
-    Serial.printf("Parameter Error\n");
-  else if ( rtrn == ESP_ERR_NO_MEM )
-    Serial.printf("DAC Out of memory\n");
-  else if ( rtrn == ESP_ERR_INVALID_STATE )
-    Serial.printf("DAC Current I2S port is in use\n");
-
-  // set up the i2s pins
-  i2s_set_pin(mI2sPort, &mI2sPinConfig);
-  // clear the DMA buffers
-  i2s_zero_dma_buffer(mI2sPort);
-}
-
-
-void DacSampler::stop()
-{
-  i2s_driver_uninstall(mI2sPort);
-}
-
-#endif
 
 /**********************************************************************
  * Enalbe i2s for dac
