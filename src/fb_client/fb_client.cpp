@@ -8,10 +8,13 @@
 
 #include "../../include/secrets.h"
 
-//Provide the token generation process info.
+// Provide the token generation process info.
 #include "addons/TokenHelper.h"
-//Provide the RTDB payload printing info and other helper functions.
+// Provide the RTDB payload printing info and other helper functions.
 #include "addons/RTDBHelper.h"
+
+// Interface to RGB LED
+#include "led/i_rgb_led.h"
 
 // Static init
 QueueHandle_t CFbClient::mRecvJobQueue;
@@ -20,12 +23,18 @@ QueueHandle_t CFbClient::mRecvJobQueue;
 /********************************************************************************************
  * Initialize firebase connection and create free RTOS task
  ********************************************************************************************/
-void CFbClient::setup()
+void CFbClient::setup(IRgbLed* iRgbLed)
 {
+  // Get interface pointer to LED
+  mRgbLed = iRgbLed;
+
+  // FreeRTOS
   // init recv job queue and task via free rtos
   mRecvJobQueue = xQueueCreate(FIREBASE_JOB_QUEUE_LENGTH,sizeof(SJob));
   xTaskCreatePinnedToCore(CFbClient::recv_job_task, "FB Client Recv Job Task", 4096, this, 1, &mRecvJobTaskHandle, 1);
 
+
+  // FireBase
   // init firebase connection, example initialization code from repository
   // assign the api key
   mConfig.api_key = API_KEY;
@@ -80,11 +89,11 @@ void CFbClient::recv_job_task(void *param)
       {
         case SJob::LED_STATE:
           // set state
-          Serial.printf("Set state to: %s\n", ( job.mState ? "On" : "Off"));
+          pThis->mRgbLed->set_state(job.mState);
           break;
         case SJob::LED_COLOR:
           // set color
-          Serial.printf("Set color: %s to %d\n", sColorToString[job.mColor], job.mColorValue);
+          pThis->mRgbLed->set_color(job.mColor, job.mColorValue);
           break;
         case SJob::AUDIO_RECV:
           // play audio
@@ -143,10 +152,12 @@ void CFbClient::color_stream_callback(MultiPathStream iData)
   // BearSSL reserved Rx buffer size is less than the actual stream payload.
   Serial.printf("Received stream payload size: %d (Max. %d)\n", iData.payloadLength(), iData.maxPayloadLength());
 
-  // update all colors at once -> does this make sense?
-  for ( size_t i = 0; i < (sizeof(mColors) / sizeof(int)); i++)
+  // update all colors at once -> does this make sense? 
+  // - Yes it's possible to update multiple colors at once 
+  // - Call get on stream for each path
+  for (int i = 0; i < static_cast<int>(EColor::NUM_OF_COLORS); i++)
   {
-    if ( iData.get(sColorToString[EColor(i)]) )
+    if (iData.get(sColorToString[EColor(i)]))
     {
       Serial.printf("Received child path: %s, event: %s, type: %s, value: %s%s", iData.dataPath.c_str(), iData.eventType.c_str(), iData.type.c_str(), iData.value.c_str(), "\n");
       

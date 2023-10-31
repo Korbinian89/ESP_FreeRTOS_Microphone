@@ -9,6 +9,7 @@ class I2sSampler
 {
 public:
     I2sSampler(i2s_port_t iI2sPort, const i2s_config_t& iI2sConfig);
+    virtual ~I2sSampler() = default;
 
     // de-/install driver and enable i2s in derived
     void start();

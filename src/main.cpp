@@ -8,7 +8,7 @@ CAppStreamToHost* pAppStreamToHost = nullptr;
 
 #elif defined(APP2_FB_CLIENT)
 #include "application/fb_client_task_queue.h"
-CAppFbClient* pAppFbClient     = nullptr;
+CAppFbClient* pAppFbClient = nullptr;
 
 #endif
 

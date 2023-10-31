@@ -8,27 +8,11 @@
 #include <map>
 #include <queue>
 
+#include "config/led_config.h"
 #include "Firebase_ESP_Client.h"
 
-
-/* ENUM and helper ***********************************************************************/
-enum EColor
-{
-    BLUE  = 0
-,   GREEN = 1
-,   RED   = 2
-};
-
-static std::map<EColor,String> sColorToString {
-    { EColor::BLUE,  "BLUE"  }
-,   { EColor::GREEN, "GREEN" }
-,   { EColor::RED,   "RED"   }
-};
-static std::map<String,EColor> sStringToColor {
-    { "BLUE",  EColor::BLUE  }
-,   { "GREEN", EColor::GREEN }
-,   { "RED",   EColor::RED   }
-};
+/* Forward Declarations *****************************************************************/
+class IRgbLed;
 
 
 /* Job Definition ***********************************************************************/
@@ -56,14 +40,13 @@ public:
     CFbClient() = default;
     ~CFbClient() = default;
 
-    void setup();
+    void setup(IRgbLed* iRgbLed);
 
 private:
+    IRgbLed* mRgbLed { nullptr };
+
     static QueueHandle_t mRecvJobQueue;
     TaskHandle_t         mRecvJobTaskHandle;
-
-    uint8_t mLedState  { 0 };
-    int     mColors[3] { 0 /*BLUE*/, 0 /*GREEN*/, 0 /*RED*/ };
 
     FirebaseData   mStreamState;
     FirebaseData   mStreamColor;

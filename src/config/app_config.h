@@ -1,20 +1,24 @@
 #pragma once
-
+#include <map>
 #include <driver/i2s.h>
+
+
 
 /**********************************************************************
  * CONSTS
  **********************************************************************/
+/* I2S */
 const int      SAMPLE_RATE                = 32000;
 const int      NUM_OF_SAMPLES_PER_SECOND  = SAMPLE_RATE;
 const uint16_t ADC_SERVER_PORT            = 12345;
 const int      DAC_BUFFER_MAX_SAMPLES     = 8192;
 
 
+
 /**********************************************************************
  * Built in ADC
  **********************************************************************/
-i2s_config_t i2SConfigAdc =
+static i2s_config_t i2SConfigAdc =
 {
   .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_ADC_BUILT_IN),
   .sample_rate = SAMPLE_RATE,
@@ -33,7 +37,7 @@ i2s_config_t i2SConfigAdc =
 /**********************************************************************
  * Do not use built-in DAC - broken with current ESP Arduino version
  **********************************************************************/
-i2s_config_t i2SConfigDac =
+static i2s_config_t i2SConfigDac =
 {
   .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
   .sample_rate = SAMPLE_RATE,
@@ -48,7 +52,7 @@ i2s_config_t i2SConfigDac =
 /**********************************************************************
  * External DAC via I2S pin layout
  **********************************************************************/
-i2s_pin_config_t i2SPinsDac = 
+static i2s_pin_config_t i2SPinsDac = 
 {
   .bck_io_num = GPIO_NUM_27,
   .ws_io_num = GPIO_NUM_14,

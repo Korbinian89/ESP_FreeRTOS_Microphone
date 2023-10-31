@@ -23,10 +23,15 @@ void CAppFbClient::setup()
   Serial.println("Started up");
   Serial.println(WiFi.localIP());
 
-  // Fb Client
+  // Rgb LED
+  Serial.print("Setup RGB LED\n");
+  mRgbLed = new CRgbLed();
+  mRgbLed->setup();
+
+  // Fb Client and pass interface to firebase client, dependency injection
   Serial.print("Setup FB Client\n");
   mFbClient = new CFbClient();
-  mFbClient->setup();
+  mFbClient->setup(mRgbLed);
 
   Serial.print("Setup - done\n");
 }
