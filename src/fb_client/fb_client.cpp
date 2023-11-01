@@ -34,7 +34,7 @@ void CFbClient::setup(IRgbLed* iRgbLed)
   // init recv job queue and task via free rtos
   // - rule of thumb, increase stack until application doesn't crash anymore
   mRecvJobQueue = xQueueCreate(FIREBASE_JOB_QUEUE_LENGTH,sizeof(SJob));
-  xTaskCreatePinnedToCore(CFbClient::recv_job_task, "FB Client Recv Job Task", 12288, this, 1, &mRecvJobTaskHandle, 1);
+  xTaskCreatePinnedToCore(CFbClient::recv_job_task, "FB Client Recv Job Task", 12288, this, 2, &mRecvJobTaskHandle, 1);
 
 
   // FireBase
@@ -61,6 +61,7 @@ void CFbClient::setup(IRgbLed* iRgbLed)
   Firebase.begin(&mConfig, &mAuth);
   Firebase.reconnectWiFi(true);
 
+
   // connect colors first
   if (!Firebase.RTDB.beginMultiPathStream(&mStreamColor, "test/LED_COLOR"))
     Serial.printf("sream begin error, %s\n\n", mStreamColor.errorReason().c_str());
@@ -72,6 +73,11 @@ void CFbClient::setup(IRgbLed* iRgbLed)
     Serial.printf("sream begin error, %s\n\n", mStreamState.errorReason().c_str());
 
   Firebase.RTDB.setStreamCallback(&mStreamState, state_stream_callback, stream_timeout);
+
+
+  // Audio data - 2x DMA buffer a 1024 samples and each sample 2 byte -> 1024 * 2 * 2 = 4096
+  //mAudioFbDataSend.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
+  //mAudioFbDataRecv.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
 }
 
 
@@ -100,6 +106,76 @@ void CFbClient::upload_color()
   xQueueSend(mRecvJobQueue, &job, portMAX_DELAY);
 }
 
+
+/********************************************************************************************
+ * Upload audio data directly via async blob
+ * iLen -> num of bytes
+ ********************************************************************************************/
+int CFbClient::upload_audio(uint8_t* iData, size_t iLen, int iIdx)
+{
+  int bytesWritten = 0;
+
+  uint8_t* buf = (uint8_t *)malloc(iLen);
+  memcpy(buf, iData, iLen);
+
+  Serial.println("Upload audio firebase start");
+
+  if (Firebase.ready())
+  {
+    if (Firebase.RTDB.setBlob(&mAudioFbDataSend, ("/test/MIC_DATA/chunk_" + std::to_string(iIdx)).c_str(), buf, iLen))
+    {
+      bytesWritten += iLen;
+      Serial.println("Upload audio firebase success");
+    }
+    else
+    {
+      Serial.printf("Upload audio failed: %s\n", mAudioFbDataSend.errorReason().c_str());
+    }
+  }
+  else
+  {
+    Serial.println("Upload audio firebase not ready");
+  }
+
+  free(buf);
+  return bytesWritten;
+}
+
+
+/********************************************************************************************
+ * Download audio data directly via blob
+ ********************************************************************************************/
+int CFbClient::download_audio(uint8_t* oData, size_t iLen, int iIdx)
+{
+  int bytesRead = 0;
+
+  std::vector<uint8_t> fbDataVec;
+
+  if(Firebase.ready())
+  {
+    if (Firebase.RTDB.getBlob(&mAudioFbDataRecv, ("/test/MIC_DATA/chunk_" + std::to_string(iIdx)).c_str()))
+    {
+      auto fbDataVec = mAudioFbDataRecv.blobData();
+      for (size_t i = 0; i < fbDataVec->size(); ++i)
+      {
+        oData[i] = fbDataVec->at(i);
+      }
+      bytesRead += iLen;
+    }
+    else
+    {
+      Serial.printf("Download audio failed: %s\n", mAudioFbDataRecv.errorReason().c_str());
+    }
+  }
+  else
+  {
+    Serial.println("Download audio firebase not ready");
+  }
+  return bytesRead;
+}
+
+
+
 /********************************************************************************************
  * Free RTOS task
  ********************************************************************************************/
@@ -113,7 +189,7 @@ void CFbClient::recv_job_task(void *param)
     FirebaseJson json;
     FirebaseData fbdo;
 
-    if (xQueueReceive(mRecvJobQueue, &job, portMAX_DELAY) == pdPASS && Firebase.ready())
+    if (xQueueReceive(mRecvJobQueue, &job, portMAX_DELAY) == pdPASS)
     {
       // check job
       switch(job.mId)

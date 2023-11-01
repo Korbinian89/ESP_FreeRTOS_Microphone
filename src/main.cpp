@@ -1,5 +1,5 @@
 // App compile switch
-#define APP2_FB_CLIENT
+#define APP3_STREAM_TO_FB
 
 
 #if defined(APP1_STREAM_TO_HOST)
@@ -9,6 +9,10 @@ CAppStreamToHost* pAppStreamToHost = nullptr;
 #elif defined(APP2_FB_CLIENT)
 #include "application/fb_client_task_queue.h"
 CAppFbClient* pAppFbClient = nullptr;
+
+#elif defined(APP3_STREAM_TO_FB)
+#include "application/stream_to_fb.h"
+CAppStreamToFb* pAppStreamToFb = nullptr;
 
 #endif
 
@@ -31,6 +35,10 @@ void setup()
 #elif defined(APP2_FB_CLIENT)
   pAppFbClient = new CAppFbClient();
   pAppFbClient->setup();
+
+#elif defined(APP3_STREAM_TO_FB)
+  pAppStreamToFb = new CAppStreamToFb();
+  pAppStreamToFb->setup();
 
 #endif
 

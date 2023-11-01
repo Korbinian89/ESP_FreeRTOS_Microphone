@@ -48,6 +48,9 @@ public:
     void upload_state();
     void upload_color();
 
+    int upload_audio(uint8_t* iData, size_t iLen, int iIdx);
+    int download_audio(uint8_t* oData, size_t iLen, int iIdx);
+
 private:
     IRgbLed* mRgbLed { nullptr };
 
@@ -56,6 +59,8 @@ private:
 
     FirebaseData   mStreamState;
     FirebaseData   mStreamColor;
+    FirebaseData   mAudioFbDataSend;
+    FirebaseData   mAudioFbDataRecv;
     FirebaseAuth   mAuth;
     FirebaseConfig mConfig;
 
