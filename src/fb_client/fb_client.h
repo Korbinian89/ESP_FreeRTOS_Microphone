@@ -21,9 +21,12 @@ struct SJob
     enum EJobId 
     {
         UNKNOWN    = 0
-    ,   LED_STATE  = 1
-    ,   LED_COLOR  = 2
-    ,   AUDIO_RECV = 3
+    ,   LED_STATE_RECV  = 1
+    ,   LED_COLOR_RECV  = 2
+    ,   AUDIO_RECV      = 3
+    ,   LED_STATE_SEND  = 4
+    ,   LED_COLOR_SEND  = 5
+    ,   AUDIO_SEND      = 6
     };
     EJobId   mId         = EJobId::UNKNOWN; // JOB ID defines which member below is evalulated - think of something better
     bool     mState      = 0;               // LED_STATE: State of the LED
@@ -41,6 +44,9 @@ public:
     ~CFbClient() = default;
 
     void setup(IRgbLed* iRgbLed);
+
+    void upload_state();
+    void upload_color();
 
 private:
     IRgbLed* mRgbLed { nullptr };

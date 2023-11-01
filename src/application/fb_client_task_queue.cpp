@@ -7,6 +7,13 @@
 #include "../../include/secrets.h"
 
 
+
+/********************************************************************************************
+ * Setup
+ * - Create LED
+ * - Create FB Client
+ * - Create App main loop
+ ********************************************************************************************/
 void CAppFbClient::setup()
 {
   // launch WiFi
@@ -33,7 +40,40 @@ void CAppFbClient::setup()
   mFbClient = new CFbClient();
   mFbClient->setup(mRgbLed);
 
+  // Setup application main loop
+  Serial.print("Setup application loop\n");
+  xTaskCreatePinnedToCore(CAppFbClient::loop, "App loop", 4096, this, 1, &mTaskHandle, 0);
+
   Serial.print("Setup - done\n");
 }
 
 
+/********************************************************************************************
+ * App main loop
+ * - Every 10s:
+ *   - Change state of LED and Upload
+ *   - Get and Set all colors of LED +20 and Upload
+ ********************************************************************************************/
+void CAppFbClient::loop(void *param)
+{
+  auto pThis = static_cast<CAppFbClient*>(param);
+
+  while(1)
+  {
+    delay(10000);
+    
+    pThis->mRgbLed->set_state(!pThis->mRgbLed->get_state());
+    pThis->mFbClient->upload_state();
+
+    for (int i = 0; i < EColor::NUM_OF_COLORS; ++i)
+    {
+      auto val = pThis->mRgbLed->get_color(EColor(i)) + 20;
+      if (val > 255)
+      {
+        val = 0;
+      }
+      pThis->mRgbLed->set_color(EColor(i), val);
+    }
+    pThis->mFbClient->upload_color();
+  } 
+}

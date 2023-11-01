@@ -82,6 +82,7 @@ void CRgbLed::set_state(bool iOn)
 int CRgbLed::get_color(EColor iColor)
 {
   std::lock_guard<std::recursive_mutex> lock(mMutex);
+  printf("Get Color: %s\n", sColorToString[iColor]);
   return mColors[static_cast<int>(iColor)];
 }
 
@@ -92,5 +93,6 @@ int CRgbLed::get_color(EColor iColor)
 bool CRgbLed::get_state()
 {
   std::lock_guard<std::recursive_mutex> lock(mMutex);
+  printf("Get State\n");
   return mState;
 }

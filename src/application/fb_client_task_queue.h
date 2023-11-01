@@ -28,4 +28,9 @@ public:
 private:
     CFbClient* mFbClient { nullptr };
     CRgbLed*   mRgbLed   { nullptr };
+
+
+    TaskHandle_t mTaskHandle;
+
+    static void loop(void *param);
 };

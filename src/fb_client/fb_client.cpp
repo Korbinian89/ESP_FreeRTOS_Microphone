@@ -16,6 +16,8 @@
 // Interface to RGB LED
 #include "led/i_rgb_led.h"
 
+#include <string>
+
 // Static init
 QueueHandle_t CFbClient::mRecvJobQueue;
 
@@ -30,8 +32,9 @@ void CFbClient::setup(IRgbLed* iRgbLed)
 
   // FreeRTOS
   // init recv job queue and task via free rtos
+  // - rule of thumb, increase stack until application doesn't crash anymore
   mRecvJobQueue = xQueueCreate(FIREBASE_JOB_QUEUE_LENGTH,sizeof(SJob));
-  xTaskCreatePinnedToCore(CFbClient::recv_job_task, "FB Client Recv Job Task", 4096, this, 1, &mRecvJobTaskHandle, 1);
+  xTaskCreatePinnedToCore(CFbClient::recv_job_task, "FB Client Recv Job Task", 12288, this, 1, &mRecvJobTaskHandle, 1);
 
 
   // FireBase
@@ -73,6 +76,31 @@ void CFbClient::setup(IRgbLed* iRgbLed)
 
 
 /********************************************************************************************
+ * Add task for uploading the LED state
+ ********************************************************************************************/
+void CFbClient::upload_state()
+{
+  printf("Upload State - Add Job\n");
+  SJob job;
+  job.mId = SJob::LED_STATE_SEND;
+
+  xQueueSend(mRecvJobQueue, &job, portMAX_DELAY);
+}
+
+
+/********************************************************************************************
+ * Add task for uploading the LED color
+ ********************************************************************************************/
+void CFbClient::upload_color()
+{
+  printf("Upload Color - Add Job\n");
+  SJob job;
+  job.mId = SJob::LED_COLOR_SEND;
+  
+  xQueueSend(mRecvJobQueue, &job, portMAX_DELAY);
+}
+
+/********************************************************************************************
  * Free RTOS task
  ********************************************************************************************/
 void CFbClient::recv_job_task(void *param)
@@ -82,21 +110,50 @@ void CFbClient::recv_job_task(void *param)
   while(1)
   {
     SJob job;
-    if (xQueueReceive(mRecvJobQueue, &job, portMAX_DELAY) == pdPASS)
+    FirebaseJson json;
+    FirebaseData fbdo;
+
+    if (xQueueReceive(mRecvJobQueue, &job, portMAX_DELAY) == pdPASS && Firebase.ready())
     {
       // check job
       switch(job.mId)
       {
-        case SJob::LED_STATE:
+        case SJob::LED_STATE_RECV:
           // set state
-          pThis->mRgbLed->set_state(job.mState);
+          if (pThis->mRgbLed)
+          {
+            pThis->mRgbLed->set_state(job.mState);
+          }
           break;
-        case SJob::LED_COLOR:
+        case SJob::LED_COLOR_RECV:
           // set color
-          pThis->mRgbLed->set_color(job.mColor, job.mColorValue);
+          if (pThis->mRgbLed)
+          {
+            pThis->mRgbLed->set_color(job.mColor, job.mColorValue);
+          }
           break;
         case SJob::AUDIO_RECV:
           // play audio
+          break;
+        case SJob::LED_STATE_SEND:
+          // upload state to firebase
+          if (pThis->mRgbLed)
+          {
+            printf("Upload State - Set Bool\n");
+            Firebase.RTDB.setBool(&fbdo, "test/LED_STATE", pThis->mRgbLed->get_state());
+          }
+          break;
+        case SJob::LED_COLOR_SEND:
+          for (int i = 0; i < static_cast<int>(EColor::NUM_OF_COLORS); ++i)
+          {
+            if (pThis->mRgbLed)
+            {
+              printf("Upload Color - Add path %s to JSON\n", sColorToString[EColor(i)]);
+              json.set(sColorToString[EColor(i)], pThis->mRgbLed->get_color(EColor(i)));
+            }
+          }
+          printf("Upload Color - Set JSON\n");
+          Firebase.RTDB.setJSON(&fbdo, "test/LED_COLOR", &json);
           break;
         default:
           break;
@@ -128,7 +185,7 @@ void CFbClient::state_stream_callback(FirebaseStream iData)
 
   // Due to limited of stack memory, do not perform any task that used large memory here
   SJob job;
-  job.mId    = SJob::LED_STATE;
+  job.mId    = SJob::LED_STATE_RECV;
   job.mState = iData.boolData();
 
   xQueueSend(mRecvJobQueue, &job, portMAX_DELAY);
@@ -162,7 +219,7 @@ void CFbClient::color_stream_callback(MultiPathStream iData)
       Serial.printf("Received child path: %s, event: %s, type: %s, value: %s%s", iData.dataPath.c_str(), iData.eventType.c_str(), iData.type.c_str(), iData.value.c_str(), "\n");
       
       SJob job;
-      job.mId         = SJob::LED_COLOR;
+      job.mId         = SJob::LED_COLOR_RECV;
       job.mColor      = EColor(i);
       job.mColorValue = iData.value.toInt();
       xQueueSend(mRecvJobQueue, &job, portMAX_DELAY);
