@@ -42,11 +42,9 @@ int AdcSampler::read(int16_t* iSamples, int iCount)
   size_t bytesRead = 0;
   auto rtrn = i2s_read(mI2sPort, iSamples, sizeof(int16_t) * iCount, &bytesRead, portMAX_DELAY);
 
-  if ( rtrn == ESP_OK )
-    Serial.println("ADC Read OK: " + String(bytesRead));
-  else
+  if ( rtrn != ESP_OK )
     Serial.println("ADC Failed - Parameter Error");
-
+  
   int samplesRead = bytesRead / sizeof(int16_t);
   for (int i = 0; i < samplesRead; i++)
   {

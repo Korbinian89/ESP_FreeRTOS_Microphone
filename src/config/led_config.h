@@ -9,9 +9,13 @@
 /**********************************************************************
  * DEFINES
  **********************************************************************/
-#define PWM_GPIO_RED   GPIO_NUM_5
-#define PWM_GPIO_GREEN GPIO_NUM_18
-#define PWM_GPIO_BLUE  GPIO_NUM_19
+//#define PWM_GPIO_RED   GPIO_NUM_5
+//#define PWM_GPIO_GREEN GPIO_NUM_18
+//#define PWM_GPIO_BLUE  GPIO_NUM_19
+// -> 5, 18, 19, 23 will be SD card SPI
+#define PWM_GPIO_RED   GPIO_NUM_21
+#define PWM_GPIO_GREEN GPIO_NUM_22
+#define PWM_GPIO_BLUE  GPIO_NUM_4
 
 
 /**********************************************************************

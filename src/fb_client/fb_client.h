@@ -10,6 +10,7 @@
 
 #include "config/led_config.h"
 #include "Firebase_ESP_Client.h"
+#include "firestore/FB_Firestore.h"
 
 /* Forward Declarations *****************************************************************/
 class IRgbLed;

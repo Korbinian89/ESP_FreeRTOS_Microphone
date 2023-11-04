@@ -76,8 +76,8 @@ void CFbClient::setup(IRgbLed* iRgbLed)
 
 
   // Audio data - 2x DMA buffer a 1024 samples and each sample 2 byte -> 1024 * 2 * 2 = 4096
-  //mAudioFbDataSend.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
-  //mAudioFbDataRecv.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
+  mAudioFbDataSend.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
+  mAudioFbDataRecv.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
 }
 
 
@@ -122,7 +122,7 @@ int CFbClient::upload_audio(uint8_t* iData, size_t iLen, int iIdx)
 
   if (Firebase.ready())
   {
-    if (Firebase.RTDB.setBlob(&mAudioFbDataSend, ("/test/MIC_DATA/chunk_" + std::to_string(iIdx)).c_str(), buf, iLen))
+    if (Firebase.RTDB.setBlobAsync(&mAudioFbDataSend, ("/test/MIC_DATA/chunk_" + std::to_string(iIdx)).c_str(), buf, iLen))
     {
       bytesWritten += iLen;
       Serial.println("Upload audio firebase success");

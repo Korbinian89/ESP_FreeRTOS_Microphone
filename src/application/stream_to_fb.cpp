@@ -107,20 +107,30 @@ void CAppStreamToFb::i2s_read_and_send_task(void *param)
     {
       if ( Firebase.ready())
       {
+        auto startTimeAdc = micros();
+
         int samplesRead = pSampler->read(pSamples, 1024 * 1 /* one dma buffer at once */);
         samplesTotal += samplesRead;
         Serial.printf("Returned: Samples read: %d\n", samplesRead);
 
+        auto endTimeAdc = micros();
+        auto startTimeFb = micros();
+
         // FB access
         int bytesSent = pFbClient->upload_audio((uint8_t*)pSamples, samplesRead * sizeof(int16_t), idx++);
         Serial.printf("Bytes sent: %d\n", bytesSent);
+
+        auto endTimeFb = micros();
+
+        Serial.printf("ADC: %lu\n", (endTimeAdc - startTimeAdc));
+        Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
       }
     }
     pSampler->stop();
 
     Serial.println("adcReadTask: finished");
 
-    // push button will control task resume 
+    // wait 3s and then start receiving mode
     vTaskDelay(3000);
 
     // Resume speaker task
@@ -161,13 +171,25 @@ void CAppStreamToFb::i2s_recv_and_write_task(void *param)
     int idx = 0;
     while(totalSamples < NUM_OF_SAMPLES_PER_SECOND * 1 /*seconds*/)
     {
-      int bytesReceived = pFbClient->download_audio((uint8_t*)pSamples, 1024 * sizeof(int16_t), idx++);
-      Serial.printf("Bytes received: %d\n", bytesReceived);
+      if ( Firebase.ready())
+      {
+        auto startTimeDac = micros();
 
-      //int samplesWritten = pSampler->write(pSamples, 1024 * 2);
-      int samplesWritten = 1024;
-      Serial.printf("Samples written %d\n", samplesWritten);
-      totalSamples += samplesWritten;
+        int bytesReceived = pFbClient->download_audio((uint8_t*)pSamples, 1024 * sizeof(int16_t), idx++);
+        Serial.printf("Bytes received: %d\n", bytesReceived);
+
+        auto endTimeDac = micros();
+        auto startTimeFb = micros();
+
+        int samplesWritten = pSampler->write(pSamples, 1024);
+        Serial.printf("Samples written %d\n", samplesWritten);
+        totalSamples += samplesWritten;
+    
+        auto endTimeFb = micros();
+
+        Serial.printf("DAC: %lu\n", (endTimeDac - startTimeDac));
+        Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
+      }
     }
 
     // stop client and DAC
