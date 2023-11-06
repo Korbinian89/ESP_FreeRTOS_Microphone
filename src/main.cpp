@@ -1,5 +1,5 @@
 // App compile switch
-#define APP3_STREAM_TO_FB
+#define APP4_STREAM_TO_SD
 
 
 #if defined(APP1_STREAM_TO_HOST)
@@ -13,6 +13,10 @@ CAppFbClient* pAppFbClient = nullptr;
 #elif defined(APP3_STREAM_TO_FB)
 #include "application/stream_to_fb.h"
 CAppStreamToFb* pAppStreamToFb = nullptr;
+
+#elif defined(APP4_STREAM_TO_SD)
+#include "application/stream_to_sd.h"
+CAppStreamToSd* pAppStreamToSd = nullptr;
 
 #endif
 
@@ -39,6 +43,10 @@ void setup()
 #elif defined(APP3_STREAM_TO_FB)
   pAppStreamToFb = new CAppStreamToFb();
   pAppStreamToFb->setup();
+
+#elif defined(APP4_STREAM_TO_SD)
+  pAppStreamToSd = new CAppStreamToSd();
+  pAppStreamToSd->setup();
 
 #endif
 

@@ -1,7 +1,8 @@
 /********************************************************************************************
- * Third Application
+ * Fourth Application
+ * Configure Firebase + LED + ADC + DAC + SD card
  ********************************************************************************************/
-#include "stream_to_fb.h"
+#include "stream_to_sd.h"
 
 // config for i2s
 #include "../config/app_config.h"
@@ -13,7 +14,7 @@
 #include "../../include/secrets.h"
 
 
-void CAppStreamToFb::setup()
+void CAppStreamToSd::setup()
 {
   // launch WiFi
   Serial.printf("Connecting to WiFi");
@@ -29,6 +30,15 @@ void CAppStreamToFb::setup()
   Serial.println("Started up");
   Serial.println(WiFi.localIP());
 
+  // Sd Card setup
+  Serial.print("Setup SD Card\n");
+  mSdCard = new CSdCard();
+  if (!mSdCard->setup())
+  {
+    // Early return of setup - if startup fails -> RGB LED won't turn on
+    return;
+  }
+
   // Rgb LED
   Serial.print("Setup RGB LED\n");
   mRgbLed = new CRgbLed();
@@ -39,13 +49,14 @@ void CAppStreamToFb::setup()
   mFbClient = new CFbClient();
   mFbClient->setup(mRgbLed);
 
+#if 0
   // setup ADC
   Serial.print("Setup ADC\n");
   mI2sAdcSampler = new AdcSampler(ADC_UNIT_1, ADC1_CHANNEL_7, I2S_NUM_0, i2SConfigAdc);
   
   // create task - second core
   Serial.print("Setup ADC Task\n");
-  xTaskCreatePinnedToCore(CAppStreamToFb::i2s_read_and_send_task, "ADC Read and WiFi Write Task", 16384, this, 1, &mI2sReadTaskHandle, 1);
+  xTaskCreatePinnedToCore(CAppStreamToSd::i2s_read_and_send_task, "ADC Read and WiFi Write Task", 16384, this, 1, &mI2sReadTaskHandle, 1);
 
   // DAC
   Serial.print("Setup DAC\n");
@@ -53,20 +64,22 @@ void CAppStreamToFb::setup()
 
   // create task - first core
   Serial.print("Setup DAC Task\n");
-  xTaskCreatePinnedToCore(CAppStreamToFb::i2s_recv_and_write_task, "DAC Write and WiFi Read Task", 16384, this, 1, &mI2sWriteTaskHandle, 1);
+  xTaskCreatePinnedToCore(CAppStreamToSd::i2s_recv_and_write_task, "DAC Write and WiFi Read Task", 16384, this, 1, &mI2sWriteTaskHandle, 1);
 
   // setup push button
   setup_push_button();
   Serial.print("Setup Push Button\n");
+#endif
+
   Serial.print("Setup - done\n");
 }
 
 
 
 
-void CAppStreamToFb::i2s_read_and_send_task(void *param)
+void CAppStreamToSd::i2s_read_and_send_task(void *param)
 { 
-  auto        pThis     = static_cast<CAppStreamToFb*>(param);
+  auto        pThis     = static_cast<CAppStreamToSd*>(param);
   I2sSampler* pSampler  = pThis->mI2sAdcSampler;
   CFbClient*  pFbClient = pThis->mFbClient;
   int16_t*    pSamples  = (int16_t *)malloc(sizeof(int16_t) * 1024 * 1); // store 1 dma buffer
@@ -139,9 +152,9 @@ void CAppStreamToFb::i2s_read_and_send_task(void *param)
 }
 
 
-void CAppStreamToFb::i2s_recv_and_write_task(void *param)
+void CAppStreamToSd::i2s_recv_and_write_task(void *param)
 {
-  auto        pThis    = static_cast<CAppStreamToFb*>(param);
+  auto        pThis    = static_cast<CAppStreamToSd*>(param);
   I2sSampler* pSampler = pThis->mI2sDacSampler;
   CFbClient*  pFbClient = pThis->mFbClient;
   int16_t*    pSamples = (int16_t *)malloc(sizeof(int16_t) * 1024); // 1 DMA buffer with 1024 samples each
@@ -203,9 +216,9 @@ void CAppStreamToFb::i2s_recv_and_write_task(void *param)
 /**********************************************************************
  * Resume task when button is pressed
  **********************************************************************/
-void IRAM_ATTR CAppStreamToFb::button_resume_task(void *param)
+void IRAM_ATTR CAppStreamToSd::button_resume_task(void *param)
 {
-  auto pThis = static_cast<CAppStreamToFb*>(param);
+  auto pThis = static_cast<CAppStreamToSd*>(param);
 
   xTaskResumeFromISR(pThis->mI2sReadTaskHandle);
 }
@@ -213,7 +226,7 @@ void IRAM_ATTR CAppStreamToFb::button_resume_task(void *param)
 /**********************************************************************
  * Setup push button
  **********************************************************************/
-void CAppStreamToFb::setup_push_button()
+void CAppStreamToSd::setup_push_button()
 {
   gpio_pad_select_gpio(PUSH_BUTTON_PIN);
 
@@ -223,5 +236,5 @@ void CAppStreamToFb::setup_push_button()
 
   gpio_install_isr_service(ESP_INR_FLAG_DEFAULT);
 
-  gpio_isr_handler_add(PUSH_BUTTON_PIN, CAppStreamToFb::button_resume_task, this);
+  gpio_isr_handler_add(PUSH_BUTTON_PIN, CAppStreamToSd::button_resume_task, this);
 }
