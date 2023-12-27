@@ -122,8 +122,8 @@ void CAppStreamToFb::i2s_read_and_send_task(void *param)
 
         auto endTimeFb = micros();
 
-        Serial.printf("ADC: %lu\n", (endTimeAdc - startTimeAdc));
-        Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
+        Serial.printf("ADC: %lu µs\n", (endTimeAdc - startTimeAdc));
+        Serial.printf("FB: %lu µs\n", (endTimeFb - startTimeFb));
       }
     }
     pSampler->stop();
@@ -173,22 +173,22 @@ void CAppStreamToFb::i2s_recv_and_write_task(void *param)
     {
       if ( Firebase.ready())
       {
-        auto startTimeDac = micros();
+        auto startTimeFb = micros();
 
         int bytesReceived = pFbClient->download_audio((uint8_t*)pSamples, 1024 * sizeof(int16_t), idx++);
         Serial.printf("Bytes received: %d\n", bytesReceived);
-
-        auto endTimeDac = micros();
-        auto startTimeFb = micros();
+       
+        auto endTimeFb = micros();
+        auto startTimeDac = micros();
 
         int samplesWritten = pSampler->write(pSamples, 1024);
         Serial.printf("Samples written %d\n", samplesWritten);
         totalSamples += samplesWritten;
     
-        auto endTimeFb = micros();
+        auto endTimeDac = micros();
 
-        Serial.printf("DAC: %lu\n", (endTimeDac - startTimeDac));
-        Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
+        Serial.printf("FB: %lu µs\n", (endTimeFb - startTimeFb));
+        Serial.printf("DAC: %lu µs\n", (endTimeDac - startTimeDac));
       }
     }
 

@@ -70,7 +70,7 @@ size_t DacSampler::write(int16_t* iSamples, int iCount)
     {
       Serial.printf("Did not write all bytes\n");
     }
-    Serial.printf("DAC: Samples send: %d, Bytes written: %d\n", samples_to_send, bytes_written);
+    //Serial.printf("DAC: Samples send: %d, Bytes written: %d\n", samples_to_send, bytes_written);
   }
   return sample_index;
 }

@@ -16,6 +16,16 @@
 
 void CAppStreamToSd::setup()
 {
+  // Sd Card setup
+  Serial.print("Setup SD Card\n");
+  mSdCard = new CSdCard();
+  if (!mSdCard->setup())
+  {
+    // Early return of setup - if startup fails -> RGB LED won't turn on
+    return;
+  }
+
+
   // launch WiFi
   Serial.printf("Connecting to WiFi");
   WiFi.mode(WIFI_STA);
@@ -30,15 +40,6 @@ void CAppStreamToSd::setup()
   Serial.println("Started up");
   Serial.println(WiFi.localIP());
 
-  // Sd Card setup
-  Serial.print("Setup SD Card\n");
-  mSdCard = new CSdCard();
-  if (!mSdCard->setup())
-  {
-    // Early return of setup - if startup fails -> RGB LED won't turn on
-    return;
-  }
-
   // Rgb LED
   Serial.print("Setup RGB LED\n");
   mRgbLed = new CRgbLed();
@@ -49,7 +50,6 @@ void CAppStreamToSd::setup()
   mFbClient = new CFbClient();
   mFbClient->setup(mRgbLed);
 
-#if 0
   // setup ADC
   Serial.print("Setup ADC\n");
   mI2sAdcSampler = new AdcSampler(ADC_UNIT_1, ADC1_CHANNEL_7, I2S_NUM_0, i2SConfigAdc);
@@ -69,7 +69,6 @@ void CAppStreamToSd::setup()
   // setup push button
   setup_push_button();
   Serial.print("Setup Push Button\n");
-#endif
 
   Serial.print("Setup - done\n");
 }
@@ -82,6 +81,7 @@ void CAppStreamToSd::i2s_read_and_send_task(void *param)
   auto        pThis     = static_cast<CAppStreamToSd*>(param);
   I2sSampler* pSampler  = pThis->mI2sAdcSampler;
   CFbClient*  pFbClient = pThis->mFbClient;
+  CSdCard*    pSdCard   = pThis->mSdCard;
   int16_t*    pSamples  = (int16_t *)malloc(sizeof(int16_t) * 1024 * 1); // store 1 dma buffer
 
   if (!pSamples)
@@ -116,29 +116,42 @@ void CAppStreamToSd::i2s_read_and_send_task(void *param)
 
     int samplesTotal = 0;
     int idx = 0;
-    while ( samplesTotal <=  NUM_OF_SAMPLES_PER_SECOND * 1 /*seconds*/) 
+
+    auto startTime = micros();
+
+    // open file - write 
+    pSdCard->open(false);
+
+    while ( samplesTotal <=  NUM_OF_SAMPLES_PER_SECOND * 3 /*seconds*/) 
     {
       if ( Firebase.ready())
       {
-        auto startTimeAdc = micros();
+        //auto startTimeAdc = micros();
 
         int samplesRead = pSampler->read(pSamples, 1024 * 1 /* one dma buffer at once */);
         samplesTotal += samplesRead;
-        Serial.printf("Returned: Samples read: %d\n", samplesRead);
+        //Serial.printf("Returned: Samples read: %d\n", samplesRead);
 
-        auto endTimeAdc = micros();
-        auto startTimeFb = micros();
+        //auto endTimeAdc = micros();
+        //auto startTimeFb = micros();
 
-        // FB access
-        int bytesSent = pFbClient->upload_audio((uint8_t*)pSamples, samplesRead * sizeof(int16_t), idx++);
-        Serial.printf("Bytes sent: %d\n", bytesSent);
+        // SD write
+        int bytesWrite = pSdCard->write((uint8_t*)pSamples, samplesRead * sizeof(int16_t), idx++);
+        //Serial.printf("Bytes sent: %d\n", bytesWrite);
 
-        auto endTimeFb = micros();
+        //auto endTimeFb = micros();
 
-        Serial.printf("ADC: %lu\n", (endTimeAdc - startTimeAdc));
-        Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
+        //Serial.printf("ADC: %lu\n", (endTimeAdc - startTimeAdc));
+        //Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
       }
     }
+    
+    auto endTime = micros();
+    Serial.printf("Capture: %lu\n", (endTime - startTime));
+    
+    // close file
+    pSdCard->close();
+
     pSampler->stop();
 
     Serial.println("adcReadTask: finished");
@@ -157,6 +170,7 @@ void CAppStreamToSd::i2s_recv_and_write_task(void *param)
   auto        pThis    = static_cast<CAppStreamToSd*>(param);
   I2sSampler* pSampler = pThis->mI2sDacSampler;
   CFbClient*  pFbClient = pThis->mFbClient;
+  CSdCard*    pSdCard   = pThis->mSdCard;
   int16_t*    pSamples = (int16_t *)malloc(sizeof(int16_t) * 1024); // 1 DMA buffer with 1024 samples each
 
   while (true)
@@ -182,28 +196,37 @@ void CAppStreamToSd::i2s_recv_and_write_task(void *param)
     
     int totalSamples = 0;
     int idx = 0;
-    while(totalSamples < NUM_OF_SAMPLES_PER_SECOND * 1 /*seconds*/)
+
+    auto startTime = micros();
+
+    // open file - read 
+    pSdCard->open(true);
+
+    while(totalSamples < NUM_OF_SAMPLES_PER_SECOND * 3 /*seconds*/)
     {
-      if ( Firebase.ready())
-      {
-        auto startTimeDac = micros();
+      //auto startTimeDac = micros();
 
-        int bytesReceived = pFbClient->download_audio((uint8_t*)pSamples, 1024 * sizeof(int16_t), idx++);
-        Serial.printf("Bytes received: %d\n", bytesReceived);
+      int bytesRead = pSdCard->read((uint8_t*)pSamples, 1024 * sizeof(int16_t), idx++);
+      //Serial.printf("Bytes received: %d\n", bytesRead);
 
-        auto endTimeDac = micros();
-        auto startTimeFb = micros();
+      //auto endTimeDac = micros();
+      //auto startTimeFb = micros();
 
-        int samplesWritten = pSampler->write(pSamples, 1024);
-        Serial.printf("Samples written %d\n", samplesWritten);
-        totalSamples += samplesWritten;
-    
-        auto endTimeFb = micros();
+      int samplesWritten = pSampler->write(pSamples, 1024);
+      //Serial.printf("Samples written %d\n", samplesWritten);
+      totalSamples += samplesWritten;
+  
+      //auto endTimeFb = micros();
 
-        Serial.printf("DAC: %lu\n", (endTimeDac - startTimeDac));
-        Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
-      }
+      //Serial.printf("DAC: %lu\n", (endTimeDac - startTimeDac));
+      //Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
     }
+
+    auto endTime = micros();
+    Serial.printf("Play: %lu\n", (endTime - startTime));
+
+    // close file
+    pSdCard->close();
 
     // stop client and DAC
     pSampler->stop();

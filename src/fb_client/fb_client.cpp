@@ -122,7 +122,7 @@ int CFbClient::upload_audio(uint8_t* iData, size_t iLen, int iIdx)
 
   if (Firebase.ready())
   {
-    if (Firebase.RTDB.setBlobAsync(&mAudioFbDataSend, ("/test/MIC_DATA/chunk_" + std::to_string(iIdx)).c_str(), buf, iLen))
+    if (Firebase.RTDB.setBlob(&mAudioFbDataSend, ("/test/MIC_DATA/chunk_" + std::to_string(iIdx)).c_str(), buf, iLen))
     {
       bytesWritten += iLen;
       Serial.println("Upload audio firebase success");

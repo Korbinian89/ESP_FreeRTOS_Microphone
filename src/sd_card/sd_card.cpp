@@ -80,14 +80,77 @@ bool CSdCard::setup()
   return true;
 }
 
-int CSdCard::read(uint8_t *oData, size_t iSize)
+
+bool CSdCard::open(bool iRead)
 {
-  return 0;
+  mFile = SD.open("/recording.bin", (iRead ? FILE_READ : FILE_WRITE));
+  
+  if(!mFile)
+  {
+    Serial.println("Failed to open file");
+    return false;
+  }
+  return true;
 }
 
-int CSdCard::write(uint8_t *iData, size_t iSize)
+
+bool CSdCard::close()
 {
-  return 0;
+  mFile.close();
+  if(mFile)
+  {
+    Serial.println("Failed to close file");
+    return false;
+  }
+  return true;
+}
+
+/********************************************************************************************
+ * Read file from SD card
+ * File must be openend manually before
+ ********************************************************************************************/
+size_t CSdCard::read(uint8_t *oData, size_t iSize, int iIdx)
+{
+  size_t rtrn = 0;
+
+  if(!mFile)
+  {
+    Serial.println("Failed to open file for reading");
+    return rtrn;
+  }
+  
+  int available = mFile.available();
+  //Serial.printf("File size: %u, available: %d\n", mFile.size(), available);
+
+  if(available > 0)
+  {
+    rtrn = mFile.read(oData, iSize);
+  }
+
+  return rtrn;
+}
+
+/********************************************************************************************
+ * Write file to SD card
+ * File must be openend manually before
+ ********************************************************************************************/
+size_t CSdCard::write(uint8_t *iData, size_t iSize, int iIdx)
+{
+ size_t rtrn = 0;
+
+  if(!mFile)
+  {
+    Serial.println("Failed to open file for writing");
+    return rtrn;
+  }
+
+  rtrn = mFile.write(iData, iSize);
+
+  if(rtrn == 0)
+  {
+    Serial.println("Write failed");
+  }
+  return rtrn;
 }
 
 
@@ -213,6 +276,37 @@ void CSdCard::read_file(fs::FS &fs, const char * path)
 /********************************************************************************************
  * Write file and content to SD card
  ********************************************************************************************/
+size_t CSdCard::write_file(fs::FS &fs, const char * path,  const uint8_t *buf, size_t size)
+{
+  size_t rtrn = 0;
+
+  Serial.printf("Writing file: %s\n", path);
+
+  File file = fs.open(path, FILE_WRITE);
+  if(!file)
+  {
+    Serial.println("Failed to open file for writing");
+    return rtrn;
+  }
+
+  rtrn = file.write(buf, size);
+
+  if(rtrn > 0)
+  {
+    Serial.printf("File written - size: %u\n", file.size());
+  }
+  else
+  {
+    Serial.println("Write failed");
+  }
+  file.close();
+
+  return rtrn;
+}
+
+/********************************************************************************************
+ * Write file and content to SD card
+ ********************************************************************************************/
 void CSdCard::write_file(fs::FS &fs, const char * path, const char * message)
 {
   Serial.printf("Writing file: %s\n", path);
@@ -256,6 +350,37 @@ void CSdCard::append_file(fs::FS &fs, const char * path, const char * message)
     Serial.println("Append failed");
   }
   file.close();
+}
+
+/********************************************************************************************
+ * Append text to file
+ ********************************************************************************************/
+size_t CSdCard::append_file(fs::FS &fs, const char * path, const uint8_t *buf, size_t size)
+{
+  size_t rtrn = 0;
+
+  Serial.printf("Appending to file: %s\n", path);
+
+  File file = fs.open(path, FILE_APPEND);
+  if(!file)
+  {
+    Serial.println("Failed to open file for appending");
+    return rtrn;
+  }
+
+  rtrn = file.write(buf, size);
+
+  if(rtrn > 0)
+  {
+    Serial.printf("File written - size: %u\n", file.size());
+  }
+  else
+  {
+    Serial.println("Write failed");
+  }
+  file.close();
+
+  return rtrn;
 }
 
 /********************************************************************************************
