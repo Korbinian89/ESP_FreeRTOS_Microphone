@@ -49,7 +49,7 @@ bool CSdCard::setup()
   if(cardType == CARD_NONE)
   {
     Serial.println("No SD card attached");
-    return false;;
+    return false;
   }
 
   Serial.print("SD Card Type: ");
@@ -80,10 +80,19 @@ bool CSdCard::setup()
   return true;
 }
 
-
+/********************************************************************************************
+ * Open file
+ ********************************************************************************************/
 bool CSdCard::open(bool iRead)
 {
-  mFile = SD.open("/recording.bin", (iRead ? FILE_READ : FILE_WRITE));
+  if (iRead)
+  {
+    mFile = SD.open("/recording_download.bin", FILE_READ);
+  }
+  else
+  {
+    mFile = SD.open("/recording_upload.bin", FILE_WRITE);
+  }
   
   if(!mFile)
   {
@@ -93,7 +102,9 @@ bool CSdCard::open(bool iRead)
   return true;
 }
 
-
+/********************************************************************************************
+ * Close file
+ ********************************************************************************************/
 bool CSdCard::close()
 {
   mFile.close();
@@ -152,6 +163,19 @@ size_t CSdCard::write(uint8_t *iData, size_t iSize, int iIdx)
   }
   return rtrn;
 }
+
+/********************************************************************************************
+ * Delete recorded file
+ ********************************************************************************************/
+bool CSdCard::delete_recording_download()
+{
+  delete_file(SD, "/recording_download.bin");
+  return true;
+}
+
+/********************************************************************************************
+ * SD card test
+ ********************************************************************************************/
 
 
 

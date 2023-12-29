@@ -12,9 +12,15 @@
 #include "addons/TokenHelper.h"
 // Provide the RTDB payload printing info and other helper functions.
 #include "addons/RTDBHelper.h"
+// Provide sd helper for FB
+#include "addons/SDHelper.h"
+
 
 // Interface to RGB LED
 #include "led/i_rgb_led.h"
+
+// Interface to SD Card
+#include "sd_card/i_sd_card.h"
 
 #include <string>
 
@@ -27,8 +33,21 @@ QueueHandle_t CFbClient::mRecvJobQueue;
  ********************************************************************************************/
 void CFbClient::setup(IRgbLed* iRgbLed)
 {
+  setup(iRgbLed, nullptr);
+}
+
+/********************************************************************************************
+ * Initialize firebase connection and create free RTOS task
+ ********************************************************************************************/
+void CFbClient::setup(IRgbLed* iRgbLed, ISdCard* iSdCard)
+{
   // Get interface pointer to LED
   mRgbLed = iRgbLed;
+
+  // Get interface pointer to Sd card
+  mSdCard = iSdCard;
+
+  Serial.println("Firebase Create Queue");
 
   // FreeRTOS
   // init recv job queue and task via free rtos
@@ -45,6 +64,11 @@ void CFbClient::setup(IRgbLed* iRgbLed)
   // assign the RTDB URL
   mConfig.database_url = DATABASE_URL;
 
+  Serial.println("Firebase SignUp");
+  //mAuth.user.email = USER_EMAIL;
+  //mAuth.user.password = USER_PASSWORD;
+
+
   // sign up
   if (Firebase.signUp(&mConfig, &mAuth, "", ""))
   {
@@ -58,9 +82,32 @@ void CFbClient::setup(IRgbLed* iRgbLed)
   // Assign the callback function for the long running token generation task
   mConfig.token_status_callback = tokenStatusCallback; //see addons/TokenHelper.h
   
-  Firebase.begin(&mConfig, &mAuth);
-  Firebase.reconnectWiFi(true);
 
+  // Audio data - 2x DMA buffer a 1024 samples and each sample 2 byte -> 1024 * 2 * 2 = 4096
+  mAudioFbDataSend.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
+  mAudioFbDataRecv.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
+
+  Serial.println("Firebase Begin");
+  Firebase.begin(&mConfig, &mAuth);
+
+  // init sd card access if necessary
+  if (mSdCard)
+  {
+    if (Firebase.sdBegin(SPI_CS_PIN, mSdCard->get_spi()))
+    {
+      Serial.println("Firebase SD success");
+    }
+    else
+    {
+      Serial.println("Firebase SD failed");
+    }
+  }
+  
+  // reconnector wifi
+  Serial.println("Firebase Reconnect WiFi");
+  Firebase.reconnectNetwork(true);
+
+  init_test();
 
   // connect colors first
   if (!Firebase.RTDB.beginMultiPathStream(&mStreamColor, "test/LED_COLOR"))
@@ -73,11 +120,6 @@ void CFbClient::setup(IRgbLed* iRgbLed)
     Serial.printf("sream begin error, %s\n\n", mStreamState.errorReason().c_str());
 
   Firebase.RTDB.setStreamCallback(&mStreamState, state_stream_callback, stream_timeout);
-
-
-  // Audio data - 2x DMA buffer a 1024 samples and each sample 2 byte -> 1024 * 2 * 2 = 4096
-  mAudioFbDataSend.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
-  mAudioFbDataRecv.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 */, 4096 /* Tx buffer size in bytes from 512 - 16384 */);
 }
 
 
@@ -86,7 +128,7 @@ void CFbClient::setup(IRgbLed* iRgbLed)
  ********************************************************************************************/
 void CFbClient::upload_state()
 {
-  printf("Upload State - Add Job\n");
+  Serial.printf("Upload State - Add Job\n");
   SJob job;
   job.mId = SJob::LED_STATE_SEND;
 
@@ -99,7 +141,7 @@ void CFbClient::upload_state()
  ********************************************************************************************/
 void CFbClient::upload_color()
 {
-  printf("Upload Color - Add Job\n");
+  Serial.printf("Upload Color - Add Job\n");
   SJob job;
   job.mId = SJob::LED_COLOR_SEND;
   
@@ -108,8 +150,115 @@ void CFbClient::upload_color()
 
 
 /********************************************************************************************
+ * Add task for uploading the audio file from SD
+ ********************************************************************************************/
+void CFbClient::upload_audio()
+{
+  #if 0
+  Serial.printf("Upload Audio - Add Job\n");
+  SJob job;
+  job.mId = SJob::AUDIO_SEND;
+  job.mPathToAudio = "/recording.bin";
+  
+  xQueueSend(mRecvJobQueue, &job, portMAX_DELAY);
+  #endif
+
+
+  Serial.printf("Upload File\n");
+
+  // manually  triggered to upload audio from SD
+  if (Firebase.RTDB.setFile(&mAudioFbDataSend, mem_storage_type_sd, "test/file/audio", "/recording_upload.bin", rtdb_upload_callback))
+  {
+    Serial.printf("Upload File - Succeeded\n");
+  }
+  else
+  {
+    Serial.printf("Upload File - Failed\n");
+  }
+}
+
+
+/********************************************************************************************
+ * Add task for downloading the audio file to SD
+ ********************************************************************************************/
+void CFbClient::download_audio()
+{
+  #if 0
+  printf("Download Audio-  Add Job\n");
+  SJob job;
+  job.mId = SJob::AUDIO_RECV;
+  job.mPathToAudio = "/recording.bin";
+  
+  xQueueSend(mRecvJobQueue, &job, portMAX_DELAY);
+  #endif
+
+  Serial.printf("Download File\n");
+
+  // manually  triggered to upload audio from SD
+  if (Firebase.RTDB.getFile(&mAudioFbDataSend, mem_storage_type_sd, "test/file/audio", "/recording_download.bin", rtdb_download_callback))
+  {
+    Serial.printf("Download File - Succeeded\n");
+    Serial.printf("HTTP Code: %d\n" + mAudioFbDataRecv.httpCode());
+  }
+  else
+  {
+    Serial.println(mAudioFbDataRecv.errorReason());
+    Serial.printf("Download File - Failed\n");
+  }
+
+}
+
+/********************************************************************************************
+ * Download callback
+ ********************************************************************************************/
+void CFbClient::rtdb_download_callback(RTDB_DownloadStatusInfo info)
+{
+  if (info.status == firebase_rtdb_download_status_init)
+  {
+    Serial.printf("Downloading file %s (%d) to %s\n", info.remotePath.c_str(), info.size, info.localFileName.c_str());
+  }
+  else if (info.status == firebase_rtdb_download_status_download)
+  {
+    Serial.printf("Downloaded %d%s\n", (int)info.progress, "%");
+  }
+  else if (info.status == firebase_rtdb_download_status_complete)
+  {
+    Serial.println("Download completed\n");
+  }
+  else if (info.status == firebase_rtdb_download_status_error)
+  {
+    Serial.printf("Download failed, %s\n", info.errorMsg.c_str());
+  }
+}
+
+/********************************************************************************************
+ * Upload callback
+ ********************************************************************************************/
+void CFbClient::rtdb_upload_callback(RTDB_UploadStatusInfo info)
+{
+  if (info.status == firebase_rtdb_upload_status_init)
+  {
+    Serial.printf("Uploading file %s (%d) to %s\n", info.localFileName.c_str(), info.size, info.remotePath.c_str());
+  }
+  else if (info.status == firebase_rtdb_upload_status_upload)
+  {
+    Serial.printf("Uploaded %d%s\n", (int)info.progress, "%");
+  }
+  else if (info.status == firebase_rtdb_upload_status_complete)
+  {
+    Serial.println("Upload completed\n");
+  }
+  else if (info.status == firebase_rtdb_upload_status_error)
+  {
+    Serial.printf("Upload failed, %s\n", info.errorMsg.c_str());
+  }
+}
+
+/********************************************************************************************
+ * DOES NOT WORK - TAKES TOO LONG - NOT CAPABLE OF REALTIME
  * Upload audio data directly via async blob
  * iLen -> num of bytes
+ * 
  ********************************************************************************************/
 int CFbClient::upload_audio(uint8_t* iData, size_t iLen, int iIdx)
 {
@@ -143,7 +292,8 @@ int CFbClient::upload_audio(uint8_t* iData, size_t iLen, int iIdx)
 
 
 /********************************************************************************************
- * Download audio data directly via blob
+ *  DOES NOT WORK - TAKES TOO LONG - NOT CAPABLE OF REALTIME
+ *  Download audio data directly via blob
  ********************************************************************************************/
 int CFbClient::download_audio(uint8_t* oData, size_t iLen, int iIdx)
 {
@@ -176,6 +326,74 @@ int CFbClient::download_audio(uint8_t* oData, size_t iLen, int iIdx)
 
 
 
+
+void CFbClient::test()
+{
+  // Firebase.ready() should be called repeatedly to handle authentication tasks.
+  if (Firebase.ready())
+  {
+    // File name must be in 8.3 DOS format (max. 8 bytes file name and 3 bytes file extension)
+    Serial.println("\nSet file...");
+
+    if (!Firebase.RTDB.setFile(&mAudioFbDataSend, mem_storage_type_sd, "test/file/data", "/file1.txt", rtdb_upload_callback /* callback function*/))
+      Serial.println(mAudioFbDataSend.errorReason());
+
+    Serial.println("\nGet file...");
+    if (!Firebase.RTDB.getFile(&mAudioFbDataSend, mem_storage_type_sd, "test/file/data", "/file2.txt", rtdb_download_callback /* callback function*/))
+      Serial.println(mAudioFbDataSend.errorReason());
+
+    if (mAudioFbDataSend.httpCode() == FIREBASE_ERROR_HTTP_CODE_OK)
+    {
+      File file;
+      file = DEFAULT_SD_FS.open("/file2.txt", "r");
+
+      int i = 0;
+
+      while (file.available())
+      {
+        if (i > 0 && i % 16 == 0)
+          Serial.println();
+
+        uint8_t v = file.read();
+
+        if (v < 16)
+          Serial.print("0");
+
+        Serial.print(v, HEX);
+        Serial.print(" ");
+        i++;
+      }
+
+      Serial.println();
+      file.close();
+    }
+  }
+  init_test();
+}
+
+
+void CFbClient::init_test()
+{
+  // Delete demo files
+  if (DEFAULT_SD_FS.exists("/file1.txt"))
+    DEFAULT_SD_FS.remove("/file1.txt");
+
+  if (DEFAULT_SD_FS.exists("/file2.txt"))
+    DEFAULT_SD_FS.remove("/file2.txt");
+
+  File file = DEFAULT_SD_FS.open("/file1.txt", "w");
+
+  uint8_t v = 0;
+  for (int i = 0; i < 512; i++)
+  {
+    file.write(v);
+    v++;
+  }
+
+  file.close();
+}
+
+
 /********************************************************************************************
  * Free RTOS task
  ********************************************************************************************/
@@ -189,7 +407,7 @@ void CFbClient::recv_job_task(void *param)
     FirebaseJson json;
     FirebaseData fbdo;
 
-    if (xQueueReceive(mRecvJobQueue, &job, portMAX_DELAY) == pdPASS)
+    if (/*Firebase.ready() &&*/ xQueueReceive(mRecvJobQueue, &job, portMAX_DELAY) == pdPASS)
     {
       // check job
       switch(job.mId)
@@ -209,7 +427,31 @@ void CFbClient::recv_job_task(void *param)
           }
           break;
         case SJob::AUDIO_RECV:
-          // play audio
+          // manually triggered download audio to SD
+          printf("Download File\n");
+
+          // manually  triggered to upload audio from SD
+          if (Firebase.RTDB.getFile(&pThis->mAudioFbDataRecv, mem_storage_type_sd, "test/AUDIO", job.mPathToAudio))
+          {
+            printf("Download File - Succeeded\n");
+          }
+          else
+          {
+            printf("Download File - Failed\n");
+          }
+          break;
+        case SJob::AUDIO_SEND:
+          printf("Upload File\n");
+
+          // manually  triggered to upload audio from SD
+          if (Firebase.RTDB.setFile(&pThis->mAudioFbDataSend, mem_storage_type_sd, "test/AUDIO", job.mPathToAudio))
+          {
+            printf("Upload File - Succeeded\n");
+          }
+          else
+          {
+            printf("Upload File - Failed\n");
+          }
           break;
         case SJob::LED_STATE_SEND:
           // upload state to firebase

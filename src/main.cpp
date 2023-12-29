@@ -18,6 +18,10 @@ CAppStreamToFb* pAppStreamToFb = nullptr;
 #include "application/stream_to_sd.h"
 CAppStreamToSd* pAppStreamToSd = nullptr;
 
+#elif defined(APP5_SD_TO_FB)
+#include "application/sd_to_fb.h"
+CAppSdToFb* pAppSdToFb = nullptr;
+
 #endif
 
 /**********************************************************************
@@ -47,6 +51,10 @@ void setup()
 #elif defined(APP4_STREAM_TO_SD)
   pAppStreamToSd = new CAppStreamToSd();
   pAppStreamToSd->setup();
+
+#elif defined(APP5_SD_TO_FB)
+  pAppSdToFb = new CAppSdToFb();
+  pAppSdToFb->setup();
 
 #endif
 

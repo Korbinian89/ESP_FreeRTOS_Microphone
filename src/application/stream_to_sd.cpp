@@ -48,7 +48,7 @@ void CAppStreamToSd::setup()
   // Fb Client and pass interface to firebase client, dependency injection
   Serial.print("Setup FB Client\n");
   mFbClient = new CFbClient();
-  mFbClient->setup(mRgbLed);
+  mFbClient->setup(mRgbLed, mSdCard);
 
   // setup ADC
   Serial.print("Setup ADC\n");
@@ -114,35 +114,21 @@ void CAppStreamToSd::i2s_read_and_send_task(void *param)
       Serial.println("ADC Sampler invalid - error");
     }
 
-    int samplesTotal = 0;
-    int idx = 0;
-
+    int  samplesTotal = 0;
+    int  idx = 0;
     auto startTime = micros();
 
     // open file - write 
     pSdCard->open(false);
 
-    while ( samplesTotal <=  NUM_OF_SAMPLES_PER_SECOND * 3 /*seconds*/) 
+    while ( samplesTotal <=  NUM_OF_SAMPLES_PER_SECOND / 32 /*seconds*/) 
     {
       if ( Firebase.ready())
       {
-        //auto startTimeAdc = micros();
-
         int samplesRead = pSampler->read(pSamples, 1024 * 1 /* one dma buffer at once */);
         samplesTotal += samplesRead;
-        //Serial.printf("Returned: Samples read: %d\n", samplesRead);
-
-        //auto endTimeAdc = micros();
-        //auto startTimeFb = micros();
-
         // SD write
         int bytesWrite = pSdCard->write((uint8_t*)pSamples, samplesRead * sizeof(int16_t), idx++);
-        //Serial.printf("Bytes sent: %d\n", bytesWrite);
-
-        //auto endTimeFb = micros();
-
-        //Serial.printf("ADC: %lu\n", (endTimeAdc - startTimeAdc));
-        //Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
       }
     }
     
@@ -152,7 +138,11 @@ void CAppStreamToSd::i2s_read_and_send_task(void *param)
     // close file
     pSdCard->close();
 
+    // stop sampler
     pSampler->stop();
+
+    // upload file
+    pFbClient->upload_audio();
 
     Serial.println("adcReadTask: finished");
 
@@ -167,11 +157,12 @@ void CAppStreamToSd::i2s_read_and_send_task(void *param)
 
 void CAppStreamToSd::i2s_recv_and_write_task(void *param)
 {
-  auto        pThis    = static_cast<CAppStreamToSd*>(param);
-  I2sSampler* pSampler = pThis->mI2sDacSampler;
+  size_t      bufSize   = 1024;
+  auto        pThis     = static_cast<CAppStreamToSd*>(param);
+  I2sSampler* pSampler  = pThis->mI2sDacSampler;
   CFbClient*  pFbClient = pThis->mFbClient;
   CSdCard*    pSdCard   = pThis->mSdCard;
-  int16_t*    pSamples = (int16_t *)malloc(sizeof(int16_t) * 1024); // 1 DMA buffer with 1024 samples each
+  int16_t*    pSamples  = (int16_t *)malloc(sizeof(int16_t) * bufSize); // 1 DMA buffer with 1024 samples each
 
   while (true)
   {
@@ -191,35 +182,41 @@ void CAppStreamToSd::i2s_recv_and_write_task(void *param)
     }
     else
     {
-      Serial.println("ADC Sampler invvalid - error");
+      Serial.println("DAC Sampler invvalid - error");
     }
-    
-    int totalSamples = 0;
-    int idx = 0;
 
+    while(!Firebase.ready())
+    {
+      Serial.println("Waiting for Firebase");
+    }
+
+    // delete old file
+    pSdCard->delete_recording_download();
+
+    // download file
+    pFbClient->download_audio();
+
+    int  totalSamples = 0;
+    int  idx = 0;
     auto startTime = micros();
 
     // open file - read 
     pSdCard->open(true);
 
-    while(totalSamples < NUM_OF_SAMPLES_PER_SECOND * 3 /*seconds*/)
+    while(totalSamples < NUM_OF_SAMPLES_PER_SECOND / 32 /*seconds*/)
     {
-      //auto startTimeDac = micros();
+      int bytesRead = pSdCard->read((uint8_t*)pSamples, bufSize * sizeof(int16_t), idx++);
 
-      int bytesRead = pSdCard->read((uint8_t*)pSamples, 1024 * sizeof(int16_t), idx++);
-      //Serial.printf("Bytes received: %d\n", bytesRead);
-
-      //auto endTimeDac = micros();
-      //auto startTimeFb = micros();
-
-      int samplesWritten = pSampler->write(pSamples, 1024);
-      //Serial.printf("Samples written %d\n", samplesWritten);
-      totalSamples += samplesWritten;
-  
-      //auto endTimeFb = micros();
-
-      //Serial.printf("DAC: %lu\n", (endTimeDac - startTimeDac));
-      //Serial.printf("FB: %lu\n", (endTimeFb - startTimeFb));
+      if (bytesRead > 0)
+      {
+        int samplesWritten = pSampler->write(pSamples, bufSize);
+        totalSamples += samplesWritten;
+      }
+      else
+      {
+        // just fake write to dac
+        totalSamples += bufSize;
+      }
     }
 
     auto endTime = micros();
