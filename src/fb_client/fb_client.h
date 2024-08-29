@@ -49,6 +49,8 @@ public:
 
     void upload_state();
     void upload_color();
+    void upload_audio_to_firebase_storage();
+    void download_audio_from_firebase_storage();
     void upload_audio();
     void download_audio();
 
@@ -67,8 +69,7 @@ private:
 
     FirebaseData   mStreamState;
     FirebaseData   mStreamColor;
-    FirebaseData   mAudioFbDataSend;
-    FirebaseData   mAudioFbDataRecv;
+    static FirebaseData   mAudioFbData;
     FirebaseAuth   mAuth;
     FirebaseConfig mConfig;
 
@@ -78,6 +79,10 @@ private:
 
     static void rtdb_download_callback(RTDB_DownloadStatusInfo info);
     static void rtdb_upload_callback(RTDB_UploadStatusInfo info);
+
+    static void fcsUploadCallback(FCS_UploadStatusInfo info);
+    static void fcsDownloadCallback(FCS_DownloadStatusInfo info);
+
 
     // Remove static and use wrapper: https://www.freertos.org/FreeRTOS_Support_Forum_Archive/July_2010/freertos_Is_it_possible_create_freertos_task_in_c_3778071.html
     static void recv_job_task(void *param);

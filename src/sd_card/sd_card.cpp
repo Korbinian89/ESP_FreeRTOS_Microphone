@@ -36,7 +36,12 @@ bool CSdCard::setup()
 
   // These are the default pins anyway
   SPI.begin(SPI_SD_SCLK, SPI_SD_MISO, SPI_SD_MOSI, SPI_SD_CS);
+  uint32_t clockDiv = SPI.getClockDivider();
+  Serial.printf("Clock Divider: %d - Setting to: %d \n", clockDiv, clockDiv*2);
+  SPI.setClockDivider(clockDiv*2);
 
+
+  
   if (!SD.begin(SPI_SD_CS))
   {
     Serial.println("Card Mount Failed");
@@ -83,15 +88,19 @@ bool CSdCard::setup()
 /********************************************************************************************
  * Open file
  ********************************************************************************************/
-bool CSdCard::open(bool iRead)
+bool CSdCard::open(bool iRead, std::string iFileName)
 {
+  if (iFileName.empty())
+  {
+    iFileName = "/recording_download.bin";
+  }
   if (iRead)
   {
-    mFile = SD.open("/recording_download.bin", FILE_READ);
+    mFile = SD.open(iFileName.c_str(), FILE_READ);
   }
   else
   {
-    mFile = SD.open("/recording_upload.bin", FILE_WRITE);
+    mFile = SD.open(iFileName.c_str(), FILE_WRITE);
   }
   
   if(!mFile)
@@ -167,9 +176,16 @@ size_t CSdCard::write(uint8_t *iData, size_t iSize, int iIdx)
 /********************************************************************************************
  * Delete recorded file
  ********************************************************************************************/
-bool CSdCard::delete_recording_download()
+bool CSdCard::delete_recording_download(std::string iFileName)
 {
-  delete_file(SD, "/recording_download.bin");
+  if (iFileName.empty())
+  {
+    delete_file(SD, "/recording_download.bin");
+  }
+  else
+  {
+    delete_file(SD, iFileName.c_str());
+  }
   return true;
 }
 

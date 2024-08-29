@@ -1,6 +1,8 @@
 /********************************************************************************************
  * Fourth Application
  * Configure Firebase + LED + ADC + DAC + SD card
+ * NOTE: TEST ONLY FILE UPLOAD TO FIREBASE 
+ * NOTHING MORE - DUMMY APP
  ********************************************************************************************/
 #include "sd_to_fb.h"
 

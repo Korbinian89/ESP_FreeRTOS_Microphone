@@ -17,11 +17,11 @@ public:
   ~CSdCard() = default;
 
   bool   setup() override;
-  bool   open(bool iRead) override;
+  bool   open(bool iRead, std::string iFileName = "") override;
   bool   close() override;
   size_t read(uint8_t* oData, size_t iSize, int iIdx) override;
   size_t write(uint8_t* iData, size_t iSize, int iIdx) override;
-  bool   delete_recording_download() override;
+  bool   delete_recording_download(std::string iFileName = "") override;
   SPIClass* get_spi() override
   {
     return mSpi;

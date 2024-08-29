@@ -1,5 +1,5 @@
 // App compile switch
-#define APP4_STREAM_TO_SD
+#define APP6_STREAM_FROM_SD
 
 
 #if defined(APP1_STREAM_TO_HOST)
@@ -19,8 +19,13 @@ CAppStreamToFb* pAppStreamToFb = nullptr;
 CAppStreamToSd* pAppStreamToSd = nullptr;
 
 #elif defined(APP5_SD_TO_FB)
+// Just test SD file upload to firebase
 #include "application/sd_to_fb.h"
 CAppSdToFb* pAppSdToFb = nullptr;
+
+#elif defined(APP6_STREAM_FROM_SD)
+#include "application/stream_from_sd.h"
+CAppStreamFromSd* pAppStreamFromSd = nullptr;
 
 #endif
 
@@ -55,6 +60,10 @@ void setup()
 #elif defined(APP5_SD_TO_FB)
   pAppSdToFb = new CAppSdToFb();
   pAppSdToFb->setup();
+
+#elif defined(APP6_STREAM_FROM_SD)
+  pAppStreamFromSd = new CAppStreamFromSd();
+  pAppStreamFromSd->setup();
 
 #endif
 
