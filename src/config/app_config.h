@@ -1,6 +1,20 @@
 #pragma once
 #include <map>
+#include <string>
 #include <driver/i2s.h>
+
+
+#if 0
+// Only use these if no ADC is enabled, otherwise we overwrite our pre-recorded test file
+const std::string UPLOAD_FILE_NAME = "/sample_16kHz_signed_16bit.raw";
+const std::string DOWNLOAD_FILE_NAME = "/sample_16kHz_signed_16bit_download.raw";
+const std::string FS_FILE_NAME = "sample_16kHz_signed_16bit.raw";
+#endif
+
+
+const std::string UPLOAD_FILE_NAME = "/recording.raw";
+const std::string DOWNLOAD_FILE_NAME = "/recording_download.raw";
+const std::string FS_FILE_NAME = "recording.raw";
 
 
 

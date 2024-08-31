@@ -53,8 +53,6 @@ void CAppStreamFromSd::setup()
 
   //mFbClient->test();
 
-#if 0
-  // NO ADC required
   // setup ADC
   Serial.print("Setup ADC\n");
   mI2sAdcSampler = new AdcSampler(ADC_UNIT_1, ADC1_CHANNEL_7, I2S_NUM_0, i2SConfigAdc);
@@ -62,7 +60,7 @@ void CAppStreamFromSd::setup()
   // create task - second core
   Serial.print("Setup ADC Task\n");
   xTaskCreatePinnedToCore(CAppStreamFromSd::i2s_read_and_send_task, "ADC Read and WiFi Write Task", 16384, this, 1, &mI2sReadTaskHandle, 1);
-#endif 
+
   // DAC
   Serial.print("Setup DAC\n");
   mI2sDacSampler = new DacSampler(i2SPinsDac, I2S_NUM_1, i2SConfigDac);
@@ -79,7 +77,7 @@ void CAppStreamFromSd::setup()
 }
 
 
-#if 0
+
 
 void CAppStreamFromSd::i2s_read_and_send_task(void *param)
 { 
@@ -123,10 +121,13 @@ void CAppStreamFromSd::i2s_read_and_send_task(void *param)
     int  idx = 0;
     auto startTime = micros();
 
-    // open file - write 
-    pSdCard->open(false);
+    // delete old file
+    pSdCard->delete_recording_download(UPLOAD_FILE_NAME);
 
-    while ( samplesTotal <=  NUM_OF_SAMPLES_PER_SECOND / 32 /*seconds*/) 
+    // open file - write 
+    pSdCard->open(false, UPLOAD_FILE_NAME);
+
+    while ( samplesTotal <=  NUM_OF_SAMPLES_PER_SECOND * 3 /*seconds*/) 
     {
       if ( Firebase.ready())
       {
@@ -147,18 +148,18 @@ void CAppStreamFromSd::i2s_read_and_send_task(void *param)
     pSampler->stop();
 
     // upload file
-    pFbClient->upload_audio();
+    pFbClient->upload_audio_to_firebase_storage();
 
     Serial.println("adcReadTask: finished");
 
     // wait 3s and then start receiving mode
-    vTaskDelay(3000);
+    vTaskDelay(1000);
 
     // Resume speaker task
     vTaskResume(pThis->mI2sWriteTaskHandle);
   }
 }
-#endif
+
 
 void CAppStreamFromSd::i2s_recv_and_write_task(void *param)
 {
@@ -195,10 +196,11 @@ void CAppStreamFromSd::i2s_recv_and_write_task(void *param)
     }
 
     // delete old downlaod
-    pSdCard->delete_recording_download("/sample_16kHz_signed_16bit_download.raw");
+    pSdCard->delete_recording_download(DOWNLOAD_FILE_NAME);
 
     // upload audio
-    pFbClient->upload_audio_to_firebase_storage();
+    //pFbClient->upload_audio_to_firebase_storage();
+    Serial.println("Download from storage");
     pFbClient->download_audio_from_firebase_storage();
 
     int  totalSamples = 0;
@@ -207,8 +209,10 @@ void CAppStreamFromSd::i2s_recv_and_write_task(void *param)
     auto startTime = micros();
 
     // open file - read 
-    pSdCard->open(true, "/sample_16kHz_signed_16bit_download.raw");
+    Serial.println("Open download file");
+    pSdCard->open(true, DOWNLOAD_FILE_NAME);
 
+    Serial.println("Read from file and write");
     // 16 kHz
     do
     {
@@ -243,7 +247,8 @@ void IRAM_ATTR CAppStreamFromSd::button_resume_task(void *param)
 {
   auto pThis = static_cast<CAppStreamFromSd*>(param);
 
-  xTaskResumeFromISR(pThis->mI2sWriteTaskHandle);
+  //xTaskResumeFromISR(pThis->mI2sWriteTaskHandle);
+    xTaskResumeFromISR(pThis->mI2sReadTaskHandle);
 }
 
 /**********************************************************************

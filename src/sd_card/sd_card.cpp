@@ -38,7 +38,6 @@ bool CSdCard::setup()
   SPI.begin(SPI_SD_SCLK, SPI_SD_MISO, SPI_SD_MOSI, SPI_SD_CS);
   uint32_t clockDiv = SPI.getClockDivider();
   Serial.printf("Clock Divider: %d - Setting to: %d \n", clockDiv, clockDiv*2);
-  SPI.setClockDivider(clockDiv*2);
 
 
   
@@ -81,12 +80,12 @@ bool CSdCard::setup()
 
   // test sd card
   Serial.println("Test SD Card");
-  test();
+  //test();
   return true;
 }
 
 /********************************************************************************************
- * Open file
+ * Open file - accepts filename (and path) f.e.: /myfile.txt
  ********************************************************************************************/
 bool CSdCard::open(bool iRead, std::string iFileName)
 {

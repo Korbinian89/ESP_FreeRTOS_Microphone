@@ -8,6 +8,8 @@
 
 #include "../../include/secrets.h"
 
+#include "config/app_config.h"
+
 // Provide the token generation process info.
 #include "addons/TokenHelper.h"
 // Provide the RTDB payload printing info and other helper functions.
@@ -110,7 +112,7 @@ void CFbClient::setup(IRgbLed* iRgbLed, ISdCard* iSdCard)
   Serial.println("Firebase Reconnect WiFi");
   Firebase.reconnectNetwork(true);
 
-  init_test();
+  //init_test();
 
   // connect colors first
   if (!Firebase.RTDB.beginMultiPathStream(&mStreamColor, "test/LED_COLOR"))
@@ -169,7 +171,7 @@ void CFbClient::upload_audio_to_firebase_storage()
 
   Serial.printf("Upload File\n");
 
-  if (!Firebase.Storage.upload(&mAudioFbData, STORAGE_URL, "/sample_16kHz_signed_16bit.raw", mem_storage_type_sd, "sample_16kHz_signed_16bit.raw", "application/octet-stream" , fcsUploadCallback /* callback function*/))
+  if (!Firebase.Storage.upload(&mAudioFbData, STORAGE_URL, UPLOAD_FILE_NAME.c_str(), mem_storage_type_sd, FS_FILE_NAME.c_str(), "application/octet-stream" , fcsUploadCallback /* callback function*/))
     Serial.println(mAudioFbData.errorReason());
   else
     Serial.printf("Upload File - Succeeded\n");
@@ -192,7 +194,7 @@ void CFbClient::download_audio_from_firebase_storage()
 
   Serial.printf("Download File\n");
 
-  if (!Firebase.Storage.download(&mAudioFbData, STORAGE_URL, "sample_16kHz_signed_16bit.raw", "/sample_16kHz_signed_16bit_download.raw", mem_storage_type_sd, fcsDownloadCallback /* callback function*/))
+  if (!Firebase.Storage.download(&mAudioFbData, STORAGE_URL, FS_FILE_NAME.c_str(), DOWNLOAD_FILE_NAME.c_str(), mem_storage_type_sd, fcsDownloadCallback /* callback function*/))
     Serial.println(mAudioFbData.errorReason());
   else
   {
